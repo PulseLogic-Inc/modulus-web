@@ -14,12 +14,18 @@
 10. [Authentication & RBAC](#authentication--rbac)
 11. [Audit Requirements](#audit-requirements)
 12. [Payroll State Machine](#payroll-state-machine)
-13. [Government Compliance Tables](#government-compliance-tables)
-14. [Domain Engines](#domain-engines)
-15. [Testing Standards](#testing-standards)
-16. [Module Licensing](#module-licensing)
-17. [Modules Roadmap](#modules-roadmap)
-18. [Changelog](#changelog)
+13. [Payroll Cadence](#payroll-cadence)
+14. [Payroll Arithmetic Rules](#payroll-arithmetic-rules)
+15. [Leave Management Rules](#leave-management-rules)
+16. [Government Compliance Tables](#government-compliance-tables)
+17. [Domain Engines](#domain-engines)
+18. [Engine Build Priority](#engine-build-priority)
+19. [Testing Standards](#testing-standards)
+20. [Module Licensing](#module-licensing)
+21. [Modules Roadmap](#modules-roadmap)
+22. [Critical Deadlines](#critical-deadlines)
+23. [Backlog Ticket Reference](#backlog-ticket-reference)
+24. [Changelog](#changelog)
 
 ---
 
@@ -269,7 +275,19 @@ Rules:
 
 ### Roles
 
-**Initial roles:** Owner, HR Admin, Manager, Employee
+| Role | Scope | Notes |
+|---|---|---|
+| Owner | Tenant-wide | Exactly one per tenant (transferable, not duplicable). Payroll approval is Owner-only — non-configurable. |
+| HR Admin | Tenant-wide | Multi-user. Day-to-day HR operations. Cannot approve payroll. |
+| Branch Manager | Location-scoped | Scoped to assigned work location(s). Read-only on most records outside their location. |
+| Accountant | Tenant-wide | Finance module access. Phase 2+. |
+| Staff / Employee | Self only | Self-service access. Phase 3+. |
+
+Rules:
+- Exactly one Owner per tenant at all times
+- Branch Manager role is auto-granted when a user is assigned as Manager to a work location (STG-005)
+- Branch Manager sees only employees at their assigned location — enforced server-side via RLS
+- Payroll approval (`payroll.finalize`) is **Owner-only, hard-coded, not configurable**
 
 ### Permissions (future model)
 
@@ -284,6 +302,17 @@ finance.view / finance.post
 ### Enforcement
 
 RBAC checks are performed in the **application or domain layer** before any mutation. RLS enforces tenant isolation at the database level as a hard boundary — it is not a substitute for application-level permission checks.
+
+### Authentication Rules
+
+- **No public sign-up.** Sign-in page has no "Create Account" link.
+- New users are invited by Owner/HR Admin via the `invite-user` edge function — invite email delivered via Supabase Auth.
+- Invite links expire after **72 hours** and are single-use.
+- Session expiry: **24-hour sliding session** for web.
+- Failed login rate limit: **5 failed attempts → 15-minute lockout** per email/IP.
+- Password reset is self-service via "Forgot password?" — link is one-time-use, expires in 1 hour.
+- Passwords: minimum 8 characters, mix of letters and numbers. Stored as bcrypt hash — never plaintext.
+- Password reset response is identical whether the email exists or not (anti-enumeration).
 
 ---
 
@@ -321,24 +350,105 @@ DRAFT → PROCESSING → GENERATED → FINALIZED → VOIDED
 
 ### Valid Transitions
 
-| From | To | Who |
-|---|---|---|
-| DRAFT | PROCESSING | Payroll Admin |
-| PROCESSING | GENERATED | System |
-| GENERATED | FINALIZED | Payroll Approver |
-| FINALIZED | VOIDED | Owner only |
+| From | To | Who | Notes |
+|---|---|---|---|
+| DRAFT | PROCESSING | HR Admin | Triggered by "Generate Payroll" |
+| PROCESSING | GENERATED | System | Auto on successful compute |
+| PROCESSING | DRAFT | System | Auto-rollback on compute failure |
+| GENERATED | DRAFT | Owner | Owner rejects; requires reason |
+| GENERATED | FINALIZED | Owner only | Requires password re-entry. Locks run, publishes payslips, writes ledger. |
+| FINALIZED | DRAFT | Owner only | Reopen; requires 50-char reason + password. Voids payslips, reverses ledger via offsetting entries. Max 3 reopens (configurable). |
+| FINALIZED | VOIDED | Owner only | Terminal state. Requires 50-char reason + password. Use for catastrophic errors only. |
 
 Rules:
 - No boolean status fields (e.g., `is_finalized`, `is_voided`)
 - Use a `status` enum column
-- All state transitions must produce an audit record
+- All state transitions must produce an audit record with full snapshot
 - Transitions outside the table above are invalid and must be rejected
+- **Payroll approval is Owner-only — HR Admin cannot finalize payroll under any configuration**
+- Ledger entries are **never deleted** — reversals are made via offsetting entries (double-entry preserved)
+- Concurrent compute attempts on the same period must be blocked
+- Payroll reset (delete computed data for DRAFT/GENERATED period) is Owner-only with triple-confirm + period code re-entry
 
 ---
 
-## Government Compliance Tables
+## Payroll Cadence
 
-Statutory contribution tables are stored separately and are version-controlled.
+Modulus supports four payroll cadences. The tenant configures one at onboarding; mid-year changes are restricted to year-end transitions.
+
+| Cadence | Cutoff | Payday | Notes |
+|---|---|---|---|
+| Weekly | Configurable workweek end (default Saturday) | Default Wednesday | **Required for construction SMEs.** Non-negotiable for CADCC pilot. |
+| Semi-Monthly | 15th & 30th | 21st & 6th | Default. DOLE DO 18-A standard. |
+| Bi-Weekly | Every 14 days (configurable anchor) | Configurable | — |
+| Monthly | End of month | Default 5th of following month | — |
+
+Rules:
+- Statutory contributions (SSS, PhilHealth, Pag-IBIG) **always aggregate monthly** for filing regardless of cadence.
+- BIR WHT brackets have **separate tables per cadence** (daily, weekly, semi-monthly, monthly) — never use semi-monthly table for weekly payroll.
+- Holiday-adjusted payday rule applies to all cadences (configurable: Forward / Backward / Stay).
+- Period codes are human-readable and deterministic: `2026-W22 (May 25–31)`, `August 2026 – Cutoff 1`, `2026-BW11`, `May 2026`.
+- Pag-IBIG deduction timing per cadence: Semi-Monthly → Cycle B; Weekly → last full week of month; Bi-Weekly → second period of month; Monthly → single period.
+
+---
+
+## Payroll Arithmetic Rules
+
+These rules are non-negotiable. Violating them causes silent payroll errors.
+
+- **Floating-point arithmetic is FORBIDDEN.** Store all monetary values as integers in centavos (e.g., ₱695.00 = `69500`). Display with 2 decimal places.
+- Every payroll line item must carry a **reason code** (e.g., `OT_REGULAR_125`, `WHT_BRACKET_3`, `NIGHT_DIFF_10PCT`) for audit replay.
+- The Payroll Compute Engine is a **pure function** — same inputs always produce same outputs. No DB writes inside the engine.
+- DOLE multipliers for reference (configurable per tenant in Phase 2; hardcoded statutory constants at MVP):
+
+| Scenario | Multiplier |
+|---|---|
+| Regular day OT (>8h) | 1.25× |
+| Rest day | 1.30× |
+| Rest day OT | 1.69× |
+| Special non-working | 1.30× |
+| Special non-working OT | 1.69× |
+| Regular holiday | 2.00× |
+| Regular holiday OT | 2.60× |
+| Night differential (10 PM–6 AM) | +10% |
+
+- All DOLE multiplier math is server-side only via the Worked Hours Engine — never computed on the client.
+- The Preview compute uses the **exact same engine** as Generate — no separate "preview math."
+
+---
+
+## Leave Management Rules
+
+### Leave Types
+
+| Code | Name | Basis | Accrual | Pay Rule |
+|---|---|---|---|---|
+| SIL | Service Incentive Leave | Labor Code Art. 95 | 5 days/year at 1-year service anniversary | Regular daily rate |
+| VL | Vacation Leave | Company policy | Configurable | Configurable (default full pay) |
+| SL | Sick Leave | Company policy | Configurable | Configurable (default full pay) |
+| ML | Maternity Leave | RA 11210 | Event-based (no balance) | Employer advances; SSS reimburses — flagged as "SSS-reimbursable" |
+| PL | Paternity Leave | RA 8187 | Event-based (7 days) | Employer pays at regular rate |
+
+### Leave Balance Rules
+
+- Leave balance is **derived, never stored as a denormalized counter.** Compute live from ledger entries.
+- Formula: `Remaining = Earned – Used + Carryover`
+- Every accrual, usage, and carryover is a **ledger entry** (same principle as accounting double-entry).
+- SIL accrual engine runs nightly as a background job — must be idempotent.
+- SIL exempt employees: companies with <10 workers (configurable at tenant level); managerial/field personnel (configurable per employee).
+- Working days calculation for leave duration excludes weekends and statutory holidays per employee's schedule.
+- Half-day leave stored as `0.5` days.
+- Leave dates auto-create timekeeping records tagged "On Leave: [type]" — these are excluded from the Incomplete Records alert and auto-flag rules.
+
+### Year-End Processing
+
+- **Hard deadline: process by November 30, 2026** (to meet December 24 SIL cash conversion requirement).
+- Unused SIL cash conversion is **mandatory** per Labor Code Art. 95 for non-exempt employees.
+- Year-end processing is configurable: carryover, forfeit, or cash conversion per leave type per company policy.
+
+---
+
+
 
 ```text
 sss_tables
@@ -372,6 +482,17 @@ Rules:
 - Engines must never import Supabase, React, or Next.js
 - Engines must be fully covered by unit tests (see Testing Standards)
 - All inputs and outputs must be typed — no `any`
+
+---
+
+## Engine Build Priority
+
+The two computation engines must be built **before any feature UI** — treat them as Sprint 0 deliverables.
+
+1. **Worked Hours Engine** (`src/engines/worked-hours/`) — needed by Timekeeping, Payroll, and OT modules.
+2. **Payroll Compute Engine** (`src/engines/payroll/`) — needed by Payroll, Reports, and 13th Month modules.
+
+Both engines require **exhaustive unit tests** covering every DOLE scenario (OT types, holiday multipliers, cadence boundaries, WHT bracket edges, leave pay types) before any UI code consumes them. If the engine is wrong, every downstream feature is wrong.
 
 ---
 
@@ -419,11 +540,80 @@ Enforcement:
 
 ## Modules Roadmap
 
-**MVP (Phase 1+):**
-HR, Payroll, Timekeeping, Leave Management, Overtime Management, Government Compliance
+### MVP (Phase 1)
 
-**Future:**
-Finance & Accounting, Procurement, Inventory, CRM, Project Management, Analytics
+| Module | Ticket Prefix | Key Scope |
+|---|---|---|
+| Authentication | AUTH | Email/password sign-in, invite-only accounts, forgot password |
+| Tenant / System | TEN | Tenant config, RBAC, audit log, notifications |
+| HR Settings | STG | Holidays, shift policies, work locations, job titles |
+| Employees | EMP | Employee list, add/edit, status lifecycle, location assignment |
+| Employment Contracts | CON | Auto-generate PH-standard contracts, contract history |
+| Timekeeping | TKP | Worked hours calc engine, daily records, OT detection, summary reports |
+| Corrections | COR | Timekeeping correction requests, approval workflow |
+| Overtime | OT | OT requests, approval with cost estimate, linking to timekeeping |
+| Leaves | LV | Leave requests, SIL accrual engine, balance ledger, payroll integration |
+| Payroll | PAY | Compute engine, lifecycle state machine, payslips, statutory remittances |
+| Government Reports | RPT | SSS R3, PhilHealth RF-1, Pag-IBIG MCRF (CSV exports) |
+| HR Dashboard | DASH | Monthly KPI overview (7 cards), PDF export |
+
+### Phase 2
+
+- Probationary contract compliance alerts (CON)
+- Digital contract signing via Lumin (CON)
+- Tenant-configurable DOLE multipliers (STG)
+- Shift policy impact preview (STG)
+- Leave calendar view (LV)
+- Year-end leave conversion / carryover processing (LV)
+- 13th Month Pay computation per PD 851 (PAY) — **hard deadline Dec 24, 2026**
+- BIR Alphalist annual report — **hard deadline Jan 31, 2027**
+- BIR Form 2316 bulk generation — **hard deadline Jan 31, 2027**
+- Payroll summary across periods (PAY)
+- Multi-tenant branded sign-in page (AUTH)
+- ID Badge generator (BDG)
+
+### Phase 3
+
+- Employee self-service (leave filing, payslip access)
+- Project P&L dashboard for construction (PRJ)
+- Receipt OCR for materials cost capture (PRJ)
+- Badge QR employee verification (BDG)
+- Finance & Accounting, Procurement, Inventory, CRM, Analytics
+
+---
+
+## Critical Deadlines
+
+| Deadline | Feature | Ticket | Notes |
+|---|---|---|---|
+| Nov 30, 2026 | 13th Month Pay build-ready | PAY-021, PAY-024 | PD 851 — release to employees by Dec 24, 2026 |
+| Nov 30, 2026 | Year-end leave conversion/carryover processing | LV-011 | Labor Code Art. 95 — unused SIL cash conversion mandatory |
+| Dec 24, 2026 | 13th Month Pay released to all eligible employees | PAY-024 | Hard legal deadline per PD 851 |
+| Jan 31, 2027 | BIR Alphalist (Form 1604-C / 1604-CF) | RPT-007 | Annual filing — must cover all employees who received compensation in 2026 |
+| Jan 31, 2027 | BIR Form 2316 bulk generation | RPT-008 | Legally required certificate per employee — BIR audits this |
+
+---
+
+## Backlog Ticket Reference
+
+Ticket IDs follow the format `PREFIX-NNN`. Use these prefixes when referencing backlog items in commits, PRs, and comments.
+
+| Prefix | Module |
+|---|---|
+| AUTH | Authentication |
+| TEN | Tenant / System (RBAC, audit, notifications) |
+| STG | HR Settings (holidays, shifts, work locations, positions) |
+| EMP | Employees |
+| CON | Employment Contracts |
+| TKP | Timekeeping |
+| COR | Corrections (Timekeeping) |
+| OT | Overtime |
+| LV | Leaves |
+| PAY | Payroll |
+| RPT | Reports (Government Remittance) |
+| DASH | HR Dashboard |
+| BDG | ID Badge |
+| PRJ | Projects (P&L Wedge — Phase 3) |
 
 ---
 
@@ -449,3 +639,22 @@ All significant architectural decisions, new conventions, and structural changes
 | 2026-06-04 | Seed data added — dev tenant + all MVP modules enabled | Local development baseline |
 | 2026-06-04 | Edge function `invite-user` implemented | Handles user invite + tenant_membership creation via service role |
 | 2026-06-04 | `.env.example` created | Documents required Supabase environment variables |
+| 2026-06-04 | Added backlog to project context | HR backlog CSV (AUTH through PRJ modules) ingested; CLAUDE.md enriched with ticket reference, deadlines, roles, payroll rules, leave rules, cadence, and roadmap phases |
+| 2026-06-04 | Updated RBAC roles to match backlog | Owner/HR Admin/Branch Manager/Accountant/Staff — Branch Manager is location-scoped |
+| 2026-06-04 | Added Authentication Rules section | Invite-only, 72h invite expiry, 24h session, 5-attempt lockout, anti-enumeration password reset |
+| 2026-06-04 | Expanded Payroll State Machine transitions | Added PROCESSING→DRAFT rollback, GENERATED→DRAFT rejection, FINALIZED→DRAFT reopen path |
+| 2026-06-04 | Added Payroll Cadence section | Weekly/Semi-Monthly/Bi-Weekly/Monthly support; Pag-IBIG deduction timing per cadence |
+| 2026-06-04 | Added Payroll Arithmetic Rules section | Floating-point forbidden; centavo integers; reason codes on every line; DOLE multiplier table |
+| 2026-06-04 | Added Leave Management Rules section | Leave types (SIL/VL/SL/ML/PL), balance-from-ledger rule, working days convention, SIL accrual |
+| 2026-06-04 | Added Engine Build Priority section | Worked Hours + Payroll engines built before any UI — Sprint 0 |
+| 2026-06-04 | Expanded Modules Roadmap with ticket prefixes and phase breakdown | Derived from backlog CSV |
+| 2026-06-04 | Added Critical Deadlines section | 13th month (Dec 24, 2026), leave processing (Nov 30, 2026), BIR reports (Jan 31, 2027) |
+| 2026-06-04 | Added Backlog Ticket Reference section | Ticket prefix → module mapping for PR/commit references |
+| 2026-06-04 | Migrations 9–26 created — all MVP domain tables | STG, EMP, CON, TKP, COR, OT, LV, PAY, notifications, RLS for all tables |
+| 2026-06-04 | `tenants` expanded with config columns (logo, tin, payroll_cadence, timezone, etc.) | TEN-001, PAY-003 |
+| 2026-06-04 | `user_role` enum expanded — added branch_manager, accountant, staff | TEN-002 backlog alignment |
+| 2026-06-04 | `bir_tables` gained `cadence` column — BIR WHT brackets differ per payroll cadence | PAY-001 |
+| 2026-06-04 | Seed data expanded — statutory tables (SSS, PhilHealth, Pag-IBIG, BIR), 2026 PH holidays, default shift policy, leave policies | Local dev baseline |
+| 2026-06-04 | Storage buckets configured — employee-documents, payslips, tenant-assets | CON, PAY-009, TEN-001 |
+| 2026-06-04 | Edge functions added — generate-payroll-periods, approve-overtime, approve-leave, finalize-payroll, reopen-payroll | PAY-004, OT-004, LV-004, PAY-008, PAY-016 |
+| 2026-06-04 | Realtime enabled on `notifications` table | TEN-004 in-app notification center |
