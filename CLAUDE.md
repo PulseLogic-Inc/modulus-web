@@ -23,9 +23,10 @@
 19. [Testing Standards](#testing-standards)
 20. [Module Licensing](#module-licensing)
 21. [Modules Roadmap](#modules-roadmap)
-22. [Critical Deadlines](#critical-deadlines)
-23. [Backlog Ticket Reference](#backlog-ticket-reference)
-24. [Changelog](#changelog)
+22. [UI Design System](#ui-design-system)
+23. [Critical Deadlines](#critical-deadlines)
+24. [Backlog Ticket Reference](#backlog-ticket-reference)
+25. [Changelog](#changelog)
 
 ---
 
@@ -53,6 +54,7 @@ Modulus Business Suite is a multi-tenant SaaS business operating system for Phil
 | Framework | Next.js 15 (App Router) |
 | Language | TypeScript |
 | Styling | Tailwind CSS + shadcn/ui |
+| Icons | Font Awesome |
 | Runtime | Bun |
 | Database | Supabase PostgreSQL |
 | Auth | Supabase Auth |
@@ -582,6 +584,103 @@ Enforcement:
 
 ---
 
+## UI Design System
+
+All UI must use **Tailwind CSS**, **shadcn/ui primitives**, and **Font Awesome** exclusively. The design language is **Corporate Bento** — a professional paradigm blending corporate minimalism with structured bento grid modular layouts.
+
+### Component Rules
+
+**Card containers** — always use shadcn semantic tokens:
+```
+bg-card text-card-foreground border-border rounded-xl shadow-sm
+```
+
+**Grid layouts** — bento grid structure:
+```
+grid grid-cols-1 md:grid-cols-3 gap-6
+```
+
+**Card hierarchy** — asymmetric spans:
+- Primary / feature cards: `md:col-span-2`
+- Supporting / metric cards: `md:col-span-1`
+
+**Padding** — strict `p-6` or `p-8` inside cards, never mixed.
+
+**Section wrapper:**
+```
+max-w-7xl mx-auto px-6 py-20 bg-background
+```
+
+### Typography
+
+| Use | Classes |
+|---|---|
+| Section label | `text-sm font-semibold tracking-wider uppercase text-primary` |
+| Page / section heading | `scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl text-foreground` |
+| Card heading | `text-xl font-bold tracking-tight text-foreground` |
+| Body / description | `text-lg text-muted-foreground` |
+| Muted supporting text | `text-sm text-muted-foreground leading-relaxed` |
+| Large stat number | `text-5xl font-extrabold tracking-tight text-foreground` |
+
+### Font Awesome Icons
+
+- **Sizing:** `fa-lg` or `fa-xl` for context icons; `fa-sm` / `fa-md` inside small data cards
+- **Color:** `text-muted-foreground` (default) or `text-primary` / `text-blue-600` for accents
+- **Container chip** — always wrap icons in:
+  ```
+  w-10 h-10 rounded-lg bg-secondary flex items-center justify-center
+  ```
+- **Placement:** icon chip placed directly before the card heading
+
+### Reference Pattern
+
+```html
+<section class="max-w-7xl mx-auto px-6 py-20 bg-background">
+  <div class="max-w-3xl mb-12">
+    <p class="text-sm font-semibold tracking-wider uppercase text-primary mb-2">Module Label</p>
+    <h2 class="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl text-foreground">
+      Section heading here.
+    </h2>
+    <p class="mt-4 text-lg text-muted-foreground">Supporting description text.</p>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+    <!-- Primary card (2 cols) -->
+    <div class="md:col-span-2 rounded-xl border bg-card text-card-foreground shadow-sm p-8 flex flex-col justify-between">
+      <div>
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
+            <i class="fa-solid fa-icon-name text-primary fa-lg"></i>
+          </div>
+          <h3 class="text-xl font-bold tracking-tight text-foreground">Card Title</h3>
+        </div>
+        <p class="text-sm text-muted-foreground max-w-xl">Card description text.</p>
+      </div>
+    </div>
+
+    <!-- Metric card (1 col) -->
+    <div class="rounded-xl border bg-card text-card-foreground shadow-sm p-8 flex flex-col justify-between">
+      <div>
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
+            <i class="fa-solid fa-icon-name text-muted-foreground fa-lg"></i>
+          </div>
+          <h3 class="text-xl font-bold tracking-tight text-foreground">Metric Title</h3>
+        </div>
+      </div>
+      <div class="mt-8">
+        <div class="text-5xl font-extrabold tracking-tight text-foreground">0</div>
+        <p class="mt-2 text-xs text-muted-foreground">Supporting context</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+```
+
+---
+
 ## Critical Deadlines
 
 | Deadline | Feature | Ticket | Notes |
@@ -658,3 +757,4 @@ All significant architectural decisions, new conventions, and structural changes
 | 2026-06-04 | Storage buckets configured — employee-documents, payslips, tenant-assets | CON, PAY-009, TEN-001 |
 | 2026-06-04 | Edge functions added — generate-payroll-periods, approve-overtime, approve-leave, finalize-payroll, reopen-payroll | PAY-004, OT-004, LV-004, PAY-008, PAY-016 |
 | 2026-06-04 | Realtime enabled on `notifications` table | TEN-004 in-app notification center |
+| 2026-06-04 | Added UI Design System section + Font Awesome to tech stack | Official stack locked: Tailwind CSS + shadcn/ui + Font Awesome, Corporate Bento pattern |
