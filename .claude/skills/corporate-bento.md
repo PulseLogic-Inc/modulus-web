@@ -10,7 +10,7 @@ A professional design paradigm blending Corporate Clean minimalism with structur
 *   **Padding Balance**: Maintain a strict `p-6` or `p-8` spacing within cards to sustain a spacious, premium corporate aesthetic.
 
 ### 2. Typography & Semantics
-*   **Headings**: Headings must use tight tracking and heavy weights (`scroll-m-20 text-2xl font-bold tracking-tight text-foreground`).
+*   **Headings**: Headings must use tight tracking and heavy weights (`scroll-m-20 text-xl font-bold tracking-tight text-foreground`).
 *   **Muted Text**: Descriptive text must use the muted utility framework (`text-sm text-muted-foreground leading-relaxed`).
 
 ### 3. Font Awesome Icon Integration
