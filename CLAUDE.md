@@ -758,3 +758,5 @@ All significant architectural decisions, new conventions, and structural changes
 | 2026-06-04 | Edge functions added — generate-payroll-periods, approve-overtime, approve-leave, finalize-payroll, reopen-payroll | PAY-004, OT-004, LV-004, PAY-008, PAY-016 |
 | 2026-06-04 | Realtime enabled on `notifications` table | TEN-004 in-app notification center |
 | 2026-06-04 | Added UI Design System section + Font Awesome to tech stack | Official stack locked: Tailwind CSS + shadcn/ui + Font Awesome, Corporate Bento pattern |
+| 2026-06-04 | Next.js 15 project scaffolded | package.json, tsconfig, next.config.ts, Tailwind v4, shadcn/ui, middleware, auth flow, platform layer, engine stubs |
+| 2026-06-04 | Supabase TypeScript types generated | src/types/supabase.ts auto-generated from remote project — covers all 26 tables + enums |
