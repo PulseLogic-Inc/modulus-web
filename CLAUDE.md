@@ -440,3 +440,12 @@ All significant architectural decisions, new conventions, and structural changes
 | 2026-06-04 | Added soft delete filtering rule | Implied but never stated explicitly |
 | 2026-06-04 | Clarified RBAC enforcement point in the stack | Ambiguous whether app or DB layer was responsible |
 | 2026-06-04 | Expanded Payroll State Machine with valid transitions table | Original diagram had no transition rules or ownership |
+| 2026-06-04 | Supabase CLI initialized — `supabase/config.toml` present | Phase 0: Supabase project setup |
+| 2026-06-04 | 8 forward-only migration files created | Phase 0: database migration foundation + core schema |
+| 2026-06-04 | RLS enabled on all platform tables with tenant-scoped policies | Security boundary enforced at DB level |
+| 2026-06-04 | Auth trigger created — profile auto-created on `auth.users` insert | Keeps identity and profile in sync without app-layer overhead |
+| 2026-06-04 | Government compliance tables added (SSS, PhilHealth, Pag-IBIG, BIR) | Versioned via `effective_from` / `effective_to` — never overwritten |
+| 2026-06-04 | `audit_logs` partitioned table created with 3 initial monthly partitions | Append-only, 7-year retention, monthly partitioning strategy |
+| 2026-06-04 | Seed data added — dev tenant + all MVP modules enabled | Local development baseline |
+| 2026-06-04 | Edge function `invite-user` implemented | Handles user invite + tenant_membership creation via service role |
+| 2026-06-04 | `.env.example` created | Documents required Supabase environment variables |
