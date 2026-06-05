@@ -1,7 +1,16 @@
-// HR domain type exports
-// Domain-specific types live here; shared infrastructure types live in src/types/
+import { z } from 'zod'
 
-export type EmploymentType = 'regular' | 'probationary' | 'project_based' | 'casual' | 'fixed_term' | 'contractual'
+// ---------------------------------------------------------------------------
+// Domain enums
+// ---------------------------------------------------------------------------
+
+export type EmploymentType =
+  | 'regular'
+  | 'probationary'
+  | 'project_based'
+  | 'casual'
+  | 'fixed_term'
+  | 'contractual'
 
 export type EmployeeStatus =
   | 'active'
@@ -14,3 +23,120 @@ export type EmployeeStatus =
   | 'inactive'
 
 export type CompensationType = 'daily' | 'monthly'
+
+export type WorkLocationType =
+  | 'head_office'
+  | 'branch'
+  | 'store'
+  | 'office'
+  | 'project_site'
+  | 'warehouse'
+  | 'field'
+  | 'mobile'
+
+export type HolidayType =
+  | 'regular_holiday'
+  | 'special_non_working'
+  | 'special_working'
+  | 'company_paid'
+  | 'company_unpaid'
+
+// ---------------------------------------------------------------------------
+// Zod schemas — used in both form validation (client) and server actions
+// ---------------------------------------------------------------------------
+
+export const WorkLocationSchema = z.object({
+  name:    z.string().min(1, 'Name is required').max(100),
+  code:    z.string().max(20).optional().or(z.literal('')),
+  address: z.string().max(255).optional().or(z.literal('')),
+  type:    z.enum([
+    'head_office', 'branch', 'store', 'office',
+    'project_site', 'warehouse', 'field', 'mobile',
+  ]),
+})
+export type WorkLocationInput = z.infer<typeof WorkLocationSchema>
+
+export const ShiftPolicyDaySchema = z.object({
+  day_of_week:   z.number().int().min(0).max(6),
+  start_time:    z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:mm'),
+  end_time:      z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:mm'),
+  is_rest_day:   z.boolean(),
+  break_minutes: z.number().int().min(0).max(240),
+  break_paid:    z.boolean(),
+})
+export type ShiftPolicyDayInput = z.infer<typeof ShiftPolicyDaySchema>
+
+export const ShiftPolicySchema = z.object({
+  name:               z.string().min(1, 'Name is required').max(100),
+  grace_period_min:   z.number().int().min(0).max(60),
+  ot_threshold_min:   z.number().int().min(0).max(120),
+  night_diff_enabled: z.boolean(),
+  night_diff_start:   z.string().regex(/^\d{2}:\d{2}$/),
+  night_diff_end:     z.string().regex(/^\d{2}:\d{2}$/),
+  days:               z.array(ShiftPolicyDaySchema).length(7),
+})
+export type ShiftPolicyInput = z.infer<typeof ShiftPolicySchema>
+
+export const HolidaySchema = z.object({
+  date:                z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD'),
+  name:                z.string().min(1, 'Name is required').max(100),
+  type:                z.enum([
+    'regular_holiday', 'special_non_working', 'special_working',
+    'company_paid', 'company_unpaid',
+  ]),
+  scope:               z.enum(['company', 'location']).default('company'),
+  recurring:           z.boolean().default(false),
+  multiplier_override: z.number().min(1).max(4).optional().nullable(),
+})
+export type HolidayInput = z.infer<typeof HolidaySchema>
+
+export const EmployeeSchema = z.object({
+  first_name:             z.string().min(1, 'First name is required').max(100),
+  middle_name:            z.string().max(100).optional().or(z.literal('')),
+  last_name:              z.string().min(1, 'Last name is required').max(100),
+  suffix:                 z.string().max(10).optional().or(z.literal('')),
+  employee_number:        z.string().min(1, 'Employee number is required').max(20),
+  hire_date:              z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD'),
+  employment_type:        z.enum([
+    'regular', 'probationary', 'project_based', 'casual', 'fixed_term', 'contractual',
+  ]),
+  status:                 z.enum([
+    'active', 'probationary', 'on_leave', 'awol','suspended', 'terminated', 'resigned', 'inactive',
+  ]),
+  compensation_type:      z.enum(['daily', 'monthly']),
+  rate_centavos:          z.number().int().positive('Rate must be greater than zero'),
+  work_location_id:       z.string().uuid('Work location is required'),
+  job_title_id:           z.string().uuid().optional().nullable(),
+  // Optional personal info
+  avatar_url:             z.string().url().optional().nullable(),
+  date_of_birth:          z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')).nullable(),
+  contact_number:         z.string().max(20).optional().or(z.literal('')).nullable(),
+  email:                  z.string().email().optional().or(z.literal('')).nullable(),
+  address:                z.string().max(255).optional().or(z.literal('')).nullable(),
+  emergency_contact_name: z.string().max(100).optional().or(z.literal('')).nullable(),
+  emergency_contact_phone:z.string().max(20).optional().or(z.literal('')).nullable(),
+  // Statutory IDs — optional at creation, required before first payroll
+  tin:                    z.string().max(20).optional().or(z.literal('')).nullable(),
+  sss_number:             z.string().max(20).optional().or(z.literal('')).nullable(),
+  philhealth_number:      z.string().max(20).optional().or(z.literal('')).nullable(),
+  pagibig_number:         z.string().max(20).optional().or(z.literal('')).nullable(),
+  sil_exempt:             z.boolean().default(false),
+})
+export type EmployeeInput = z.infer<typeof EmployeeSchema>
+
+export const EmployeeRateSchema = z.object({
+  rate_centavos:    z.number().int().positive('Rate must be greater than zero'),
+  compensation_type: z.enum(['daily', 'monthly']),
+  effective_from:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+})
+export type EmployeeRateInput = z.infer<typeof EmployeeRateSchema>
+
+export const StatusChangeSchema = z.object({
+  status:         z.enum([
+    'active', 'probationary', 'on_leave', 'awol',
+    'suspended', 'terminated', 'resigned', 'inactive',
+  ]),
+  reason:         z.string().max(500).optional(),
+  effective_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+})
+export type StatusChangeInput = z.infer<typeof StatusChangeSchema>

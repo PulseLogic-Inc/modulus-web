@@ -2,7 +2,24 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { Database } from '@/types/supabase'
 
+// Use in Server Components
 export async function createServerSupabaseClient() {
+  const cookieStore = await cookies()
+
+  return createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => cookieStore.getAll(),
+        setAll: () => {}, // no-op — cookie writes not allowed in Server Components
+      },
+    }
+  )
+}
+
+// Use in Server Actions and Route Handlers
+export async function createActionSupabaseClient() {
   const cookieStore = await cookies()
 
   return createServerClient<Database>(

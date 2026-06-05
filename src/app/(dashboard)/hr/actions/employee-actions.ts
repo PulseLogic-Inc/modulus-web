@@ -1,0 +1,138 @@
+'use server'
+
+import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
+import { requireTenant } from '@/platform/tenants'
+import { requireRole } from '@/platform/permissions'
+import { EmployeeSchema, StatusChangeSchema } from '@/domains/hr/types'
+import {
+  createEmployee,
+  updateEmployeeDetails,
+  changeEmployeeStatus,
+  suggestEmployeeNumber,
+} from '@/domains/hr/services/employee-service'
+import type { Enums } from '@/types/supabase'
+
+export async function getNextEmployeeNumberAction(): Promise<string> {
+  const { id: tenantId } = await requireTenant()
+  return suggestEmployeeNumber(tenantId)
+}
+
+export async function createEmployeeAction(
+  _prev: { error?: string } | null,
+  formData: FormData,
+): Promise<{ error?: string } | null> {
+  const { id: tenantId, role, userId } = await requireTenant()
+  requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
+
+  const raw = {
+    first_name:              formData.get('first_name'),
+    middle_name:             formData.get('middle_name') || null,
+    last_name:               formData.get('last_name'),
+    suffix:                  formData.get('suffix') || null,
+    employee_number:         formData.get('employee_number'),
+    hire_date:               formData.get('hire_date'),
+    employment_type:         formData.get('employment_type'),
+    compensation_type:       formData.get('compensation_type'),
+    rate_centavos:           Number(formData.get('rate_centavos')),
+    work_location_id:        formData.get('work_location_id'),
+    job_title_id:            formData.get('job_title_id') || null,
+    date_of_birth:           formData.get('date_of_birth') || null,
+    contact_number:          formData.get('contact_number') || null,
+    email:                   formData.get('email') || null,
+    address:                 formData.get('address') || null,
+    emergency_contact_name:  formData.get('emergency_contact_name') || null,
+    emergency_contact_phone: formData.get('emergency_contact_phone') || null,
+    tin:                     formData.get('tin') || null,
+    sss_number:              formData.get('sss_number') || null,
+    philhealth_number:       formData.get('philhealth_number') || null,
+    pagibig_number:          formData.get('pagibig_number') || null,
+    sil_exempt:              formData.get('sil_exempt') === 'true',
+  }
+
+  const parsed = EmployeeSchema.safeParse(raw)
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+  }
+
+  let employee: { id: string }
+  try {
+    employee = await createEmployee(tenantId, userId, parsed.data)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Failed to create employee' }
+  }
+
+  redirect(`/hr/${employee.id}`)
+}
+
+export async function updateEmployeeAction(
+  employeeId: string,
+  _prev: { error?: string } | null,
+  formData: FormData,
+): Promise<{ error?: string } | null> {
+  const { id: tenantId, role, userId } = await requireTenant()
+  requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
+
+  const raw = {
+    first_name:              formData.get('first_name'),
+    middle_name:             formData.get('middle_name') || null,
+    last_name:               formData.get('last_name'),
+    suffix:                  formData.get('suffix') || null,
+    employee_number:         formData.get('employee_number'),
+    hire_date:               formData.get('hire_date'),
+    employment_type:         formData.get('employment_type'),
+    compensation_type:       formData.get('compensation_type'),
+    rate_centavos:           Number(formData.get('rate_centavos')),
+    work_location_id:        formData.get('work_location_id'),
+    job_title_id:            formData.get('job_title_id') || null,
+    date_of_birth:           formData.get('date_of_birth') || null,
+    contact_number:          formData.get('contact_number') || null,
+    email:                   formData.get('email') || null,
+    address:                 formData.get('address') || null,
+    emergency_contact_name:  formData.get('emergency_contact_name') || null,
+    emergency_contact_phone: formData.get('emergency_contact_phone') || null,
+    tin:                     formData.get('tin') || null,
+    sss_number:              formData.get('sss_number') || null,
+    philhealth_number:       formData.get('philhealth_number') || null,
+    pagibig_number:          formData.get('pagibig_number') || null,
+    sil_exempt:              formData.get('sil_exempt') === 'true',
+  }
+
+  const parsed = EmployeeSchema.safeParse(raw)
+  if (!parsed.success) return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+
+  try {
+    await updateEmployeeDetails(tenantId, userId, employeeId, parsed.data)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Failed to update employee' }
+  }
+
+  revalidatePath(`/hr/${employeeId}`)
+  return null
+}
+
+export async function changeEmployeeStatusAction(
+  employeeId: string,
+  _prev: { error?: string } | null,
+  formData: FormData,
+): Promise<{ error?: string } | null> {
+  const { id: tenantId, role, userId } = await requireTenant()
+  requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
+
+  const parsed = StatusChangeSchema.safeParse({
+    status:         formData.get('status'),
+    reason:         formData.get('reason') || undefined,
+    effective_date: formData.get('effective_date'),
+  })
+  if (!parsed.success) return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+
+  try {
+    await changeEmployeeStatus(tenantId, userId, employeeId, parsed.data)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Failed to change status' }
+  }
+
+  revalidatePath(`/hr/${employeeId}`)
+  revalidatePath('/hr')
+  return null
+}
