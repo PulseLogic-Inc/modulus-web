@@ -21,7 +21,7 @@ export function SignInForm() {
             <FontAwesomeIcon icon={faRightToBracket} className="text-primary fa-lg" />
           </div>
           <CardTitle className="text-xl font-bold tracking-tight text-foreground">
-            Sign in to Modulus
+            Sign in to Modulus ERP
           </CardTitle>
         </div>
         <CardDescription className="text-sm text-muted-foreground leading-relaxed">

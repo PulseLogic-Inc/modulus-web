@@ -5,7 +5,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Modulus wordmark */}
         <div className="text-center mb-8">
           <p className="text-sm font-semibold tracking-wider uppercase text-muted-foreground mb-1">
-            Modulus
+            Modulus ERP
           </p>
           <p className="text-xs text-muted-foreground">Business Suite</p>
         </div>
