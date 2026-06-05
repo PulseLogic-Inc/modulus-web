@@ -5,6 +5,7 @@ import type { Enums } from '@/types/supabase'
 
 const SETTINGS_TABS = [
   { href: '/hr/settings/work-locations', label: 'Work Locations' },
+  { href: '/hr/settings/job-titles',     label: 'Job Titles' },
   { href: '/hr/settings/shift-policies', label: 'Shift Policies' },
   { href: '/hr/settings/holidays',       label: 'Holidays' },
 ]

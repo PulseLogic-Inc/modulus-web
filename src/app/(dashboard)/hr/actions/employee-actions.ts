@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/platform/tenants'
 import { requireRole } from '@/platform/permissions'
+import { logAudit } from '@/platform/audit'
 import { EmployeeSchema, StatusChangeSchema } from '@/domains/hr/types'
 import {
   createEmployee,
@@ -11,6 +12,7 @@ import {
   changeEmployeeStatus,
   suggestEmployeeNumber,
 } from '@/domains/hr/services/employee-service'
+import { softDeleteEmployee } from '@/domains/hr/repositories/employee-repository'
 import type { Enums } from '@/types/supabase'
 
 export async function getNextEmployeeNumberAction(): Promise<string> {
@@ -135,4 +137,25 @@ export async function changeEmployeeStatusAction(
   revalidatePath(`/hr/${employeeId}`)
   revalidatePath('/hr')
   return null
+}
+
+export async function archiveEmployeeAction(employeeId: string): Promise<{ error?: string } | null> {
+  const { id: tenantId, role, userId } = await requireTenant()
+  requireRole(role as Enums<'user_role'>, ['owner'])
+
+  try {
+    await softDeleteEmployee(tenantId, employeeId)
+    await logAudit({
+      tenantId,
+      actor: userId,
+      action: 'DELETE',
+      entity: 'employees',
+      entityId: employeeId,
+      reason: 'Employee archived',
+    })
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Failed to archive employee' }
+  }
+
+  redirect('/hr')
 }

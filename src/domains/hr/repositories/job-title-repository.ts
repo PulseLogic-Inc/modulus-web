@@ -38,6 +38,19 @@ export async function insertJobTitle(tenantId: string, name: string): Promise<Jo
   return data
 }
 
+export async function updateJobTitle(tenantId: string, id: string, name: string): Promise<JobTitleRow> {
+  const supabase = await createServerSupabaseClient()
+  const { data, error } = await supabase
+    .from('job_titles')
+    .update({ name: name.trim() })
+    .eq('tenant_id', tenantId)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
 export async function softDeleteJobTitle(tenantId: string, id: string): Promise<void> {
   const supabase = await createServerSupabaseClient()
   const { error } = await supabase

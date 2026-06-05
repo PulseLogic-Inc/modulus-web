@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import { requireTenant } from '@/platform/tenants'
 import { getEmployeeWithRate, getEmployeeRateHistory } from '@/domains/hr/services/employee-service'
 import { getWorkLocations } from '@/domains/hr/services/work-location-service'
@@ -8,13 +9,17 @@ import { EmployeeAvatar } from '@/components/hr/employee-avatar'
 import { StatusBadge } from '@/components/hr/status-badge'
 import { formatCentavos } from '@/lib/utils'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faTriangleExclamation, faBuilding, faBriefcase, faCalendar } from '@fortawesome/free-solid-svg-icons'
+import { faTriangleExclamation, faBuilding, faBriefcase, faCalendar, faPen } from '@fortawesome/free-solid-svg-icons'
+import { ChangeStatusDialog } from './change-status-dialog'
+import { ArchiveEmployeeDialog } from './archive-employee-dialog'
 import type { EmployeeStatus } from '@/domains/hr/types'
+import type { Enums } from '@/types/supabase'
 
 export default async function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { id: tenantId } = await requireTenant()
+  const { id: tenantId, role } = await requireTenant()
 
   const [employee, locations, jobTitles, supabase] = await Promise.all([
     getEmployeeWithRate(tenantId, id),
@@ -70,12 +75,34 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
             size="lg"
           />
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 mb-1 flex-wrap">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                {employee.first_name} {employee.middle_name ? `${employee.middle_name} ` : ''}{employee.last_name}
-                {employee.suffix ? `, ${employee.suffix}` : ''}
-              </h1>
-              <StatusBadge status={employee.status as EmployeeStatus} />
+            <div className="flex items-center gap-3 mb-4 flex-wrap justify-between">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                  {employee.first_name} {employee.middle_name ? `${employee.middle_name} ` : ''}{employee.last_name}
+                  {employee.suffix ? `, ${employee.suffix}` : ''}
+                </h1>
+                <StatusBadge status={employee.status as EmployeeStatus} />
+              </div>
+              {(['owner', 'hr_admin'] as Enums<'user_role'>[]).includes(role as Enums<'user_role'>) && (
+                <div className="flex gap-2 flex-wrap">
+                  <Link href={`/hr/${employee.id}/edit`}>
+                    <Button size="sm" variant="outline" className="gap-2">
+                      <FontAwesomeIcon icon={faPen} className="fa-xs" />
+                      Edit
+                    </Button>
+                  </Link>
+                  <ChangeStatusDialog
+                    employeeId={employee.id}
+                    currentStatus={employee.status as EmployeeStatus}
+                  />
+                  {role === 'owner' && (
+                    <ArchiveEmployeeDialog
+                      employeeId={employee.id}
+                      employeeName={`${employee.first_name} ${employee.last_name}`}
+                    />
+                  )}
+                </div>
+              )}
             </div>
             <p className="text-sm text-muted-foreground mb-4">{employee.employee_number}</p>
 
