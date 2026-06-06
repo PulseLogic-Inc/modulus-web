@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
 import type { EmployeeInput, EmployeeStatus } from '@/domains/hr/types'
 
@@ -103,7 +103,7 @@ export async function insertEmployee(
   tenantId: string,
   data: Omit<EmployeeInsert, 'tenant_id'>,
 ): Promise<EmployeeRow> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { data: row, error } = await supabase
     .from('employees')
     .insert({ tenant_id: tenantId, ...data })
@@ -118,7 +118,7 @@ export async function updateEmployee(
   id: string,
   data: Partial<EmployeeInput>,
 ): Promise<EmployeeRow> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
 
   const { rate_centavos, compensation_type, ...employeeData } = data
   const { data: row, error } = await supabase
@@ -134,7 +134,7 @@ export async function updateEmployee(
 }
 
 export async function softDeleteEmployee(tenantId: string, id: string): Promise<void> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { error } = await supabase
     .from('employees')
     .update({ deleted_at: new Date().toISOString() })

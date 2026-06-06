@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
 import type { ShiftPolicyDayInput } from '@/domains/hr/types'
 
@@ -43,7 +43,7 @@ export async function insertShiftPolicy(
   policy: Omit<Database['public']['Tables']['shift_policies']['Insert'], 'tenant_id'>,
   days: ShiftPolicyDayInput[],
 ): Promise<ShiftPolicyRow> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
 
   const { data: policyRow, error: policyError } = await supabase
     .from('shift_policies')
@@ -65,7 +65,7 @@ export async function updateShiftPolicy(
   policy: Partial<Database['public']['Tables']['shift_policies']['Update']>,
   days?: ShiftPolicyDayInput[],
 ): Promise<ShiftPolicyRow> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
 
   const { data: policyRow, error: policyError } = await supabase
     .from('shift_policies')
@@ -87,7 +87,7 @@ export async function updateShiftPolicy(
 }
 
 export async function softDeleteShiftPolicy(tenantId: string, id: string): Promise<void> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { error } = await supabase
     .from('shift_policies')
     .update({ deleted_at: new Date().toISOString(), status: 'inactive' })

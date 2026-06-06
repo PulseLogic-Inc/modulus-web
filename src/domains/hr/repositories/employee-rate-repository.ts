@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
 
 type RateRow    = Database['public']['Tables']['employee_rates']['Row']
@@ -29,7 +29,7 @@ export async function findRateHistory(employeeId: string): Promise<RateRow[]> {
 }
 
 export async function insertRate(data: RateInsert): Promise<RateRow> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { data: row, error } = await supabase
     .from('employee_rates')
     .insert(data)
@@ -40,7 +40,7 @@ export async function insertRate(data: RateInsert): Promise<RateRow> {
 }
 
 export async function closeCurrentRate(employeeId: string, effectiveTo: string): Promise<void> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { error } = await supabase
     .from('employee_rates')
     .update({ effective_to: effectiveTo })

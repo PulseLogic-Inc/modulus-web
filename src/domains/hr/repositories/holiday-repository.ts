@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
 import type { HolidayInput } from '@/domains/hr/types'
 
@@ -31,7 +31,7 @@ export async function findHolidayByDate(tenantId: string, date: string): Promise
 }
 
 export async function insertHoliday(tenantId: string, data: HolidayInput): Promise<HolidayRow> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { data: row, error } = await supabase
     .from('company_holidays')
     .insert({ tenant_id: tenantId, ...data })
@@ -46,7 +46,7 @@ export async function updateHoliday(
   id: string,
   data: Partial<HolidayInput>,
 ): Promise<HolidayRow> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { data: row, error } = await supabase
     .from('company_holidays')
     .update({ ...data, updated_at: new Date().toISOString() })
@@ -60,7 +60,7 @@ export async function updateHoliday(
 }
 
 export async function softDeleteHoliday(tenantId: string, id: string): Promise<void> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { error } = await supabase
     .from('company_holidays')
     .update({ deleted_at: new Date().toISOString() })

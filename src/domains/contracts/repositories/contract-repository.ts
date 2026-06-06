@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
 import type { ContractType, ContractStatus } from '@/domains/contracts/types'
 
@@ -87,7 +87,7 @@ export async function findContractById(
 export async function insertContract(
   data: Omit<EmploymentContract, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>,
 ): Promise<EmploymentContract> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { data: inserted, error } = await supabase
     .from('employment_contracts')
     .insert(data)
@@ -119,7 +119,7 @@ export async function updateContractStatus(
     storage_path: string
   }>,
 ): Promise<EmploymentContract> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { data: updated, error } = await supabase
     .from('employment_contracts')
     .update({
@@ -141,7 +141,7 @@ export async function updateContractStatus(
  * @param contractId - Contract ID
  */
 export async function softDeleteContract(tenantId: string, contractId: string): Promise<void> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { error } = await supabase
     .from('employment_contracts')
     .update({ deleted_at: new Date().toISOString() })
@@ -157,7 +157,7 @@ export async function softDeleteContract(tenantId: string, contractId: string): 
  * @param contractId - Old contract ID
  */
 export async function supersedContract(tenantId: string, contractId: string): Promise<void> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { error } = await supabase
     .from('employment_contracts')
     .update({ status: 'superseded' as any })

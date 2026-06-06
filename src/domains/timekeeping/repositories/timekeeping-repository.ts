@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
 import type { TimekeepingStatus } from '@/domains/timekeeping/types'
 
@@ -108,7 +108,7 @@ export async function findFlaggedRecords(tenantId: string): Promise<TimekeepingR
 export async function insertRecord(
   data: Omit<TimekeepingRecord, 'id' | 'created_at' | 'updated_at'>,
 ): Promise<TimekeepingRecord> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { data: inserted, error } = await supabase
     .from('timekeeping_records')
     .insert(data)
@@ -131,7 +131,7 @@ export async function updateRecord(
   id: string,
   data: Partial<Omit<TimekeepingRecord, 'id' | 'created_at' | 'updated_at'>>,
 ): Promise<TimekeepingRecord> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { data: updated, error } = await supabase
     .from('timekeeping_records')
     .update(data)

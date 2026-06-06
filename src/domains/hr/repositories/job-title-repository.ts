@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
 
 type JobTitleRow = Database['public']['Tables']['job_titles']['Row']
@@ -28,7 +28,7 @@ export async function findJobTitleByName(tenantId: string, name: string): Promis
 }
 
 export async function insertJobTitle(tenantId: string, name: string): Promise<JobTitleRow> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { data, error } = await supabase
     .from('job_titles')
     .insert({ tenant_id: tenantId, name: name.trim() })
@@ -39,7 +39,7 @@ export async function insertJobTitle(tenantId: string, name: string): Promise<Jo
 }
 
 export async function updateJobTitle(tenantId: string, id: string, name: string): Promise<JobTitleRow> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { data, error } = await supabase
     .from('job_titles')
     .update({ name: name.trim() })
@@ -52,7 +52,7 @@ export async function updateJobTitle(tenantId: string, id: string, name: string)
 }
 
 export async function softDeleteJobTitle(tenantId: string, id: string): Promise<void> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { error } = await supabase
     .from('job_titles')
     .update({ deleted_at: new Date().toISOString() })

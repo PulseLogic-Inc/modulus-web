@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createAdminSupabaseClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
 import type { WorkLocationInput } from '@/domains/hr/types'
 
@@ -33,7 +33,7 @@ export async function insertWorkLocation(
   tenantId: string,
   data: WorkLocationInput,
 ): Promise<WorkLocationRow> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { data: row, error } = await supabase
     .from('work_locations')
     .insert({ tenant_id: tenantId, ...data })
@@ -48,7 +48,7 @@ export async function updateWorkLocation(
   id: string,
   data: Partial<WorkLocationInput>,
 ): Promise<WorkLocationRow> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { data: row, error } = await supabase
     .from('work_locations')
     .update({ ...data, updated_at: new Date().toISOString() })
@@ -62,7 +62,7 @@ export async function updateWorkLocation(
 }
 
 export async function softDeleteWorkLocation(tenantId: string, id: string): Promise<void> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createAdminSupabaseClient()
   const { error } = await supabase
     .from('work_locations')
     .update({ deleted_at: new Date().toISOString(), status: 'inactive' })
