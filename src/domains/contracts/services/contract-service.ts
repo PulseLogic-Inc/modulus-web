@@ -1,5 +1,5 @@
 import { logAudit } from '@/platform/audit'
-import { generatePdfFromTemplate, generateStoragePath } from '@/lib/pdf/generate'
+import { generateStoragePath } from '@/lib/pdf/generate'
 import { getContractTemplate, type ContractData } from '@/lib/contracts/ph-template'
 import {
   findContractsByEmployee,
@@ -53,29 +53,10 @@ export async function generateContract(
     company_representative_title: 'Chief Executive Officer',
   }
 
-  // 3. Build contract data from employee + company
-  const contractData = buildContractData(employee, companyData, contractType)
-
-  // 4. Get template and interpolate
+  // 3. Get template (contract data used only when issued, not during draft)
   const template = getContractTemplate(contractType)
 
-  // 5. Interpolate template with data
-  let interpolated = template
-  for (const [key, value] of Object.entries(contractData)) {
-    const placeholder = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
-    interpolated = interpolated.replace(placeholder, String(value || ''))
-  }
-
-  // 6. Generate PDF (will throw if PDF library not implemented)
-  let pdfBuffer: Buffer | null = null
-  try {
-    pdfBuffer = await generatePdfFromTemplate(template, contractData as unknown as Record<string, string | number>, `contract-${employeeId}`)
-  } catch (err) {
-    // PDF generation not yet implemented — continue without PDF
-    console.warn('PDF generation not implemented, creating contract without PDF:', err)
-  }
-
-  // 7. Insert contract record (status = 'draft', no storage_path yet)
+  // 4. Insert contract record (status = 'draft', no storage_path yet)
   const contract = await insertContract({
     tenant_id: tenantId,
     employee_id: employeeId,
@@ -140,7 +121,7 @@ export async function issueContract(
     await supersedContract(tenantId, activeContract.id)
   }
 
-  // 4. Re-generate PDF
+  // 4. Generate contract HTML (PDF generation happens client-side for MVP)
   const companyData = {
     company_name: 'Modulus Business Suite Inc.',
     company_address: 'Manila, Philippines',
@@ -150,31 +131,41 @@ export async function issueContract(
   const contractData = buildContractData(employee, companyData, contract.contract_type as ContractType)
   const template = getContractTemplate(contract.contract_type as ContractType)
 
-  let pdfBuffer: Buffer | null = null
+  // Interpolate template with contract data
+  let contractHtml = template
+  for (const [key, value] of Object.entries(contractData)) {
+    const placeholder = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
+    contractHtml = contractHtml.replace(placeholder, String(value || ''))
+  }
+
+  // For MVP: store HTML, client-side PDF generation via html2pdf.js
   let storagePath: string | null = null
 
   try {
-    pdfBuffer = await generatePdfFromTemplate(template, contractData as unknown as Record<string, string | number>, `contract-${contract.employee_id}`)
-
-    // 5. Upload to Supabase Storage
+    // Upload HTML version to Storage
+    // Client will render to PDF when user clicks download
     const adminClient = await createAdminSupabaseClient()
     storagePath = generateStoragePath(
       'contracts',
       tenantId,
       contract.id,
-      `${contract.contract_type}-contract-${contract.employee_id}`,
+      `${contract.contract_type}-contract-${contract.employee_id}.html`,
     )
 
     const { error: uploadError } = await adminClient.storage
       .from('employee-documents')
-      .upload(storagePath, pdfBuffer, {
+      .upload(storagePath, new TextEncoder().encode(contractHtml), {
+        contentType: 'text/html',
         cacheControl: '3600',
         upsert: true,
       })
 
-    if (uploadError) throw uploadError
+    if (uploadError) {
+      console.warn('HTML upload failed:', uploadError)
+      storagePath = null
+    }
   } catch (err) {
-    console.warn('PDF upload failed, issuing contract without storage_path:', err)
+    console.warn('Contract HTML upload failed, issuing without storage_path:', err)
     storagePath = null
   }
 

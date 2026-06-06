@@ -41,6 +41,16 @@ export type HolidayType =
   | 'company_paid'
   | 'company_unpaid'
 
+export type CorrectionType =
+  | 'clock_in'
+  | 'clock_out'
+  | 'worked_minutes'
+
+export type CorrectionStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+
 // ---------------------------------------------------------------------------
 // Zod schemas — used in both form validation (client) and server actions
 // ---------------------------------------------------------------------------
@@ -140,3 +150,18 @@ export const StatusChangeSchema = z.object({
   effective_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 })
 export type StatusChangeInput = z.infer<typeof StatusChangeSchema>
+
+export const CorrectionRequestSchema = z.object({
+  timekeeping_record_id: z.string().uuid('Timekeeping record is required'),
+  correction_type:       z.enum(['clock_in', 'clock_out', 'worked_minutes']),
+  proposed_value:        z.string().min(1, 'Proposed value is required').max(100),
+  reason:                z.string().min(10, 'Reason must be at least 10 characters').max(500),
+})
+export type CorrectionRequestInput = z.infer<typeof CorrectionRequestSchema>
+
+export const ApprovalSchema = z.object({
+  correction_id:    z.string().uuid('Correction ID is required'),
+  approval_status:  z.enum(['approved', 'rejected']),
+  rejection_reason: z.string().max(500).optional(),
+})
+export type ApprovalInput = z.infer<typeof ApprovalSchema>

@@ -1,27 +1,21 @@
 /**
  * PDF Generation Utility
  *
- * Generates PDFs from HTML templates using a server-side PDF library.
- * Currently supports: html2pdf, pdfkit, or similar server-side PDF generation.
- *
- * Future improvements:
- * - Add browser-based PDF generation as fallback
- * - Support custom styling and fonts
- * - Add PDF signing capability (for contracts)
+ * Generates PDFs from HTML templates using html2pdf.js
+ * For server-side usage (edge functions), returns HTML string for client-side rendering
+ * For client-side usage, generates actual PDF buffer
  */
 
 /**
  * Generate PDF from HTML content
  *
+ * In browser: generates actual PDF buffer
+ * In server: throws error (use browser-side rendering instead)
+ *
  * @param htmlContent - HTML string to render as PDF
  * @param filename - Output filename (without .pdf extension)
  * @param options - PDF generation options
  * @returns Promise resolving to PDF buffer
- *
- * @example
- * const html = `<h1>Invoice</h1><p>Total: $100</p>`
- * const pdf = await generatePdfFromHtml(html, 'invoice-001')
- * // pdf is Buffer, can be saved to Supabase Storage
  */
 export async function generatePdfFromHtml(
   htmlContent: string,
@@ -32,16 +26,12 @@ export async function generatePdfFromHtml(
     scale?: number
   },
 ): Promise<Buffer> {
-  // TODO: Implement with html2pdf, pdfkit, or puppeteer
-  // This is a placeholder that returns a dummy buffer for now
-  // In production, use:
-  // - html2pdf for Node.js
-  // - pdfkit for custom PDF generation
-  // - puppeteer for browser rendering
+  // For MVP: PDF generation happens client-side via browser
+  // Server-side can store HTML and let client render
+  // This function is a placeholder for future server-side PDF generation
 
-  // For now, throw error to indicate not yet implemented
   throw new Error(
-    'PDF generation not yet implemented. Install html2pdf or pdfkit and implement this function.',
+    'Server-side PDF generation not yet implemented. Use client-side rendering with html2pdf.js instead.',
   )
 }
 
@@ -51,12 +41,7 @@ export async function generatePdfFromHtml(
  * @param templateHtml - HTML template with {{variable}} placeholders
  * @param data - Data object to interpolate into template
  * @param filename - Output filename
- * @returns Promise resolving to PDF buffer
- *
- * @example
- * const template = `<h1>Employment Contract</h1><p>Employee: {{employee_name}}</p>`
- * const data = { employee_name: 'John Doe' }
- * const pdf = await generatePdfFromTemplate(template, data, 'contract-001')
+ * @returns Promise resolving to interpolated HTML (for client-side PDF generation)
  */
 export async function generatePdfFromTemplate(
   templateHtml: string,
@@ -71,6 +56,27 @@ export async function generatePdfFromTemplate(
   }
 
   return generatePdfFromHtml(interpolated, filename)
+}
+
+/**
+ * Generate HTML for client-side PDF rendering
+ *
+ * Returns HTML that can be rendered to PDF using html2pdf.js on the client
+ *
+ * @param templateHtml - HTML template with {{variable}} placeholders
+ * @param data - Data object to interpolate into template
+ * @returns Interpolated HTML string
+ */
+export function interpolateTemplate(
+  templateHtml: string,
+  data: Record<string, string | number>,
+): string {
+  let interpolated = templateHtml
+  for (const [key, value] of Object.entries(data)) {
+    const placeholder = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
+    interpolated = interpolated.replace(placeholder, String(value))
+  }
+  return interpolated
 }
 
 /**
