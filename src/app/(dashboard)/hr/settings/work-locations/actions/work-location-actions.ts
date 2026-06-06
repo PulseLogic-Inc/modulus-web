@@ -24,7 +24,7 @@ export async function createWorkLocationAction(
     address: formData.get('address') || undefined,
     type:    formData.get('type'),
   })
-  if (!parsed.success) return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+  if (!parsed.success) return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
 
   await createWorkLocation(tenantId, userId, parsed.data)
   revalidatePath('/hr/settings/work-locations')
@@ -45,7 +45,7 @@ export async function updateWorkLocationAction(
     address: formData.get('address') || undefined,
     type:    formData.get('type'),
   })
-  if (!parsed.success) return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+  if (!parsed.success) return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
 
   await updateWorkLocationDetails(tenantId, userId, id, parsed.data)
   revalidatePath('/hr/settings/work-locations')

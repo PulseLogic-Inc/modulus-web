@@ -32,8 +32,9 @@ export async function createShiftPolicyAction(
   }
 
   // Parse day schedules (0-6 for Sun-Sat)
+  const days: Array<Record<string, unknown>> = []
   for (let i = 0; i < 7; i++) {
-    raw.days?.push({
+    days.push({
       day_of_week:   i,
       start_time:    formData.get(`day_${i}_start_time`),
       end_time:      formData.get(`day_${i}_end_time`),
@@ -42,10 +43,11 @@ export async function createShiftPolicyAction(
       break_paid:    formData.get(`day_${i}_break_paid`) === 'true',
     })
   }
+  raw.days = days
 
   const parsed = ShiftPolicySchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+    return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
   }
 
   let policy
@@ -78,8 +80,9 @@ export async function updateShiftPolicyAction(
   }
 
   // Parse day schedules
+  const days: Array<Record<string, unknown>> = []
   for (let i = 0; i < 7; i++) {
-    raw.days?.push({
+    days.push({
       day_of_week:   i,
       start_time:    formData.get(`day_${i}_start_time`),
       end_time:      formData.get(`day_${i}_end_time`),
@@ -88,10 +91,11 @@ export async function updateShiftPolicyAction(
       break_paid:    formData.get(`day_${i}_break_paid`) === 'true',
     })
   }
+  raw.days = days
 
   const parsed = ShiftPolicySchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+    return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
   }
 
   try {

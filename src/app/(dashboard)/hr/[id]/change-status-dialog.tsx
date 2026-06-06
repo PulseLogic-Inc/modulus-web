@@ -20,7 +20,7 @@ interface ChangeStatusDialogProps {
 export function ChangeStatusDialog({ employeeId, currentStatus }: ChangeStatusDialogProps) {
   const [open, setOpen] = useState(false)
   const [state, action, isPending] = useActionState(
-    (prev, formData) => changeEmployeeStatusAction(employeeId, prev, formData),
+    (prev: { error?: string } | null, formData: FormData) => changeEmployeeStatusAction(employeeId, prev, formData),
     null
   )
 

@@ -4,6 +4,7 @@ import type { ShiftPolicyDayInput } from '@/domains/hr/types'
 
 type ShiftPolicyRow    = Database['public']['Tables']['shift_policies']['Row']
 type ShiftPolicyDayRow = Database['public']['Tables']['shift_policy_days']['Row']
+type EmployeeShiftAssignment = Database['public']['Tables']['employee_shift_assignments']['Row']
 
 export interface ShiftPolicyWithDays extends ShiftPolicyRow {
   shift_policy_days: ShiftPolicyDayRow[]
@@ -93,4 +94,27 @@ export async function softDeleteShiftPolicy(tenantId: string, id: string): Promi
     .eq('tenant_id', tenantId)
     .eq('id', id)
   if (error) throw error
+}
+
+export async function findActiveShiftAssignment(
+  employeeId: string,
+  onDate?: string,
+): Promise<EmployeeShiftAssignment | null> {
+  const supabase = await createServerSupabaseClient()
+  const checkDate = onDate || new Date().toISOString().split('T')[0]
+
+  const { data, error } = await supabase
+    .from('employee_shift_assignments')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .lte('effective_from', checkDate)
+    .or(`effective_to.is.null,effective_to.gte.${checkDate}`)
+    .is('deleted_at', null)
+    .order('effective_from', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (error?.code === 'PGRST116') return null // No rows found
+  if (error) throw error
+  return data
 }

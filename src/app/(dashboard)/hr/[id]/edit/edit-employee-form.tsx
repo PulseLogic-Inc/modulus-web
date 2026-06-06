@@ -21,7 +21,7 @@ interface EditEmployeeFormProps {
 
 export function EditEmployeeForm({ employee, locations, jobTitles }: EditEmployeeFormProps) {
   const [state, action, isPending] = useActionState(
-    (prev, formData) => updateEmployeeAction(employee.id, prev, formData),
+    (prev: { error?: string } | null, formData: FormData) => updateEmployeeAction(employee.id, prev, formData),
     null
   )
 

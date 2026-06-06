@@ -2,15 +2,16 @@
 
 import { useActionState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCalendarDays, faPlus, faTrash, faLock } from '@fortawesome/free-solid-svg-icons'
+import { faCalendarDays, faPlus, faTrash, faLock, faSync } from '@fortawesome/free-solid-svg-icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { DataEmpty } from '@/components/shared/data-empty'
-import { createHolidayAction, deleteHolidayAction } from './actions/holiday-actions'
+import { createHolidayAction, deleteHolidayAction, syncPhHolidaysAction } from './actions/holiday-actions'
 import type { Database } from '@/types/supabase'
 
 type HolidayRow = Database['public']['Tables']['company_holidays']['Row']
@@ -21,6 +22,62 @@ const HOLIDAY_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   special_working:      { label: 'Special Working',       color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
   company_paid:         { label: 'Company Paid',          color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' },
   company_unpaid:       { label: 'Company Unpaid',        color: 'bg-muted text-muted-foreground' },
+}
+
+function SyncPhHolidaysDialog() {
+  const [state, action, isPending] = useActionState(syncPhHolidaysAction, null)
+  const currentYear = new Date().getFullYear()
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="gap-2">
+          <FontAwesomeIcon icon={faSync} className="fa-sm" />
+          Sync PH Holidays
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold tracking-tight">Sync PH Holidays</DialogTitle>
+        </DialogHeader>
+        <form action={action} className="space-y-4 mt-2">
+          <div className="space-y-2">
+            <Label htmlFor="year">Year *</Label>
+            <Input
+              id="year"
+              name="year"
+              type="number"
+              min="2000"
+              max="2100"
+              defaultValue={currentYear}
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              Fetches official Philippine statutory holidays for the selected year
+            </p>
+          </div>
+
+          {state?.error && (
+            <Alert variant="destructive">
+              <AlertDescription>{state.error}</AlertDescription>
+            </Alert>
+          )}
+
+          {state?.synced && (
+            <Alert className="bg-emerald-50 border-emerald-200">
+              <AlertDescription className="text-emerald-800">
+                ✓ Successfully synced {state.synced} holidays for {currentYear}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <Button type="submit" className="w-full" disabled={isPending}>
+            {isPending ? 'Syncing…' : 'Sync Holidays'}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 function AddHolidayDialog() {
@@ -70,22 +127,32 @@ function AddHolidayDialog() {
 }
 
 export function HolidayList({ holidays, year }: { holidays: HolidayRow[]; year: number }) {
+  const statutoryCount = holidays.filter(h => h.source === 'statutory').length
+  const customCount = holidays.filter(h => h.source === 'custom').length
+
   if (holidays.length === 0) {
     return (
       <DataEmpty
         icon={faCalendarDays}
         title={`No holidays for ${year}`}
-        description="PH statutory holidays will appear here. You can also add custom company holidays."
-        action={<AddHolidayDialog />}
+        description="Sync PH statutory holidays, or add custom company holidays."
+        action={<SyncPhHolidaysDialog />}
       />
     )
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-muted-foreground">{holidays.length} holidays in {year}</p>
-        <AddHolidayDialog />
+      <div className="flex justify-between items-center gap-4">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            {holidays.length} total holidays {statutoryCount > 0 && `(${statutoryCount} statutory, ${customCount} custom)`}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <SyncPhHolidaysDialog />
+          <AddHolidayDialog />
+        </div>
       </div>
 
       <div className="rounded-xl border bg-card overflow-hidden">

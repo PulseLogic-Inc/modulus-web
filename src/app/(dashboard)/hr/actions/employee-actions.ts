@@ -54,7 +54,7 @@ export async function createEmployeeAction(
 
   const parsed = EmployeeSchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+    return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
   }
 
   let employee: { id: string }
@@ -101,7 +101,7 @@ export async function updateEmployeeAction(
   }
 
   const parsed = EmployeeSchema.safeParse(raw)
-  if (!parsed.success) return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+  if (!parsed.success) return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
 
   try {
     await updateEmployeeDetails(tenantId, userId, employeeId, parsed.data)
@@ -126,7 +126,7 @@ export async function changeEmployeeStatusAction(
     reason:         formData.get('reason') || undefined,
     effective_date: formData.get('effective_date'),
   })
-  if (!parsed.success) return { error: parsed.error.errors[0]?.message ?? 'Invalid input' }
+  if (!parsed.success) return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
 
   try {
     await changeEmployeeStatus(tenantId, userId, employeeId, parsed.data)
