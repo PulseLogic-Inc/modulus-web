@@ -183,3 +183,20 @@ export const OvertimeApprovalSchema = z.object({
   rejection_reason:  z.string().max(500).optional(),
 })
 export type OvertimeApprovalInput = z.infer<typeof OvertimeApprovalSchema>
+
+export const LeaveRequestSchema = z.object({
+  leave_type:        z.enum(['sil', 'vl', 'sl', 'ml', 'pl'], { message: 'Invalid leave type' }),
+  start_date:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD'),
+  end_date:          z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD'),
+  days:              z.number().min(0.5, 'Minimum 0.5 days').max(365, 'Maximum 365 days'),
+  is_half_day:       z.boolean().default(false),
+  reason:            z.string().min(10, 'Reason must be at least 10 characters').max(500),
+})
+export type LeaveRequestInput = z.infer<typeof LeaveRequestSchema>
+
+export const LeaveApprovalSchema = z.object({
+  leave_request_id:  z.string().uuid('Leave request ID is required'),
+  approval_status:   z.enum(['approved', 'rejected']),
+  rejection_reason:  z.string().min(10, 'Reason must be at least 10 characters').max(500).optional(),
+})
+export type LeaveApprovalInput = z.infer<typeof LeaveApprovalSchema>
