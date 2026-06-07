@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent } from '@/components/ui/card'
+import { useActionToast } from '@/hooks/use-action-toast'
 import { createShiftPolicyAction, updateShiftPolicyAction } from './actions/shift-policy-actions'
 import type { Database } from '@/types/supabase'
 
@@ -31,10 +32,16 @@ interface DaySchedule {
 }
 
 export function ShiftPolicyForm({ mode, policy }: ShiftPolicyFormProps) {
+  const handleToast = useActionToast()
+
   const [state, action, isPending] = useActionState(
-    mode === 'edit' && policy
-      ? (prev, formData) => updateShiftPolicyAction(policy.id, prev, formData)
-      : createShiftPolicyAction,
+    async (prev, formData) => {
+      const result = await (mode === 'edit' && policy
+        ? updateShiftPolicyAction(policy.id, prev, formData)
+        : createShiftPolicyAction(prev, formData))
+      handleToast(result)
+      return result
+    },
     null
   )
 
@@ -238,10 +245,6 @@ export function ShiftPolicyForm({ mode, policy }: ShiftPolicyFormProps) {
           ))}
         </div>
       </div>
-
-      {state?.error && (
-        <p className="text-sm text-destructive font-medium">{state.error}</p>
-      )}
 
       <div className="flex gap-3">
         <Button type="submit" disabled={isPending} className="flex-1">

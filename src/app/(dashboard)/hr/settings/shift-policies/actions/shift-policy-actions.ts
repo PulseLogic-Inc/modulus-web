@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/platform/tenants'
 import { requireRole } from '@/platform/permissions'
 import { ShiftPolicySchema } from '@/domains/hr/types'
+import { toasts, createActionResult } from '@/lib/toast-server'
 import {
   createShiftPolicy,
   updateShiftPolicyDetails,
@@ -14,9 +15,9 @@ import type { ShiftPolicyInput } from '@/domains/hr/types'
 import type { Enums } from '@/types/supabase'
 
 export async function createShiftPolicyAction(
-  _prev: { error?: string } | null,
+  _prev: unknown,
   formData: FormData,
-): Promise<{ error?: string } | null> {
+) {
   const { id: tenantId, role, userId } = await requireTenant()
   requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
 
@@ -47,24 +48,38 @@ export async function createShiftPolicyAction(
 
   const parsed = ShiftPolicySchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
+    return createActionResult(
+      false,
+      undefined,
+      parsed.error.issues?.[0]?.message ?? 'Invalid input',
+      toasts.error('Validation failed', parsed.error.issues?.[0]?.message)
+    )
   }
 
-  let policy
   try {
-    policy = await createShiftPolicy(tenantId, userId, parsed.data as ShiftPolicyInput)
+    const policy = await createShiftPolicy(tenantId, userId, parsed.data as ShiftPolicyInput)
+    return createActionResult(
+      true,
+      { id: policy.id },
+      undefined,
+      toasts.success('Shift policy created successfully!')
+    )
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to create shift policy' }
+    const message = err instanceof Error ? err.message : 'Failed to create shift policy'
+    return createActionResult(
+      false,
+      undefined,
+      message,
+      toasts.error('Failed to create', message)
+    )
   }
-
-  redirect(`/hr/settings/shift-policies/${policy.id}`)
 }
 
 export async function updateShiftPolicyAction(
   policyId: string,
-  _prev: { error?: string } | null,
+  _prev: unknown,
   formData: FormData,
-): Promise<{ error?: string } | null> {
+) {
   const { id: tenantId, role, userId } = await requireTenant()
   requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
 
@@ -95,29 +110,55 @@ export async function updateShiftPolicyAction(
 
   const parsed = ShiftPolicySchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
+    return createActionResult(
+      false,
+      undefined,
+      parsed.error.issues?.[0]?.message ?? 'Invalid input',
+      toasts.error('Validation failed', parsed.error.issues?.[0]?.message)
+    )
   }
 
   try {
     await updateShiftPolicyDetails(tenantId, userId, policyId, parsed.data as Partial<ShiftPolicyInput>)
+    revalidatePath(`/hr/settings/shift-policies/${policyId}`)
+    revalidatePath('/hr/settings/shift-policies')
+    return createActionResult(
+      true,
+      { id: policyId },
+      undefined,
+      toasts.success('Shift policy updated successfully!')
+    )
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to update shift policy' }
+    const message = err instanceof Error ? err.message : 'Failed to update shift policy'
+    return createActionResult(
+      false,
+      undefined,
+      message,
+      toasts.error('Failed to update', message)
+    )
   }
-
-  revalidatePath(`/hr/settings/shift-policies/${policyId}`)
-  revalidatePath('/hr/settings/shift-policies')
-  return null
 }
 
-export async function deleteShiftPolicyAction(policyId: string): Promise<void> {
+export async function deleteShiftPolicyAction(policyId: string) {
   const { id: tenantId, role, userId } = await requireTenant()
   requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
 
   try {
     await deactivateShiftPolicy(tenantId, userId, policyId)
+    revalidatePath('/hr/settings/shift-policies')
+    return createActionResult(
+      true,
+      undefined,
+      undefined,
+      toasts.success('Shift policy deleted successfully!')
+    )
   } catch (err) {
-    throw err instanceof Error ? err : new Error('Failed to delete shift policy')
+    const message = err instanceof Error ? err.message : 'Failed to delete shift policy'
+    return createActionResult(
+      false,
+      undefined,
+      message,
+      toasts.error('Failed to delete', message)
+    )
   }
-
-  revalidatePath('/hr/settings/shift-policies')
 }
