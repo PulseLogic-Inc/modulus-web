@@ -1,86 +1,86 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { useRouter } from 'next/navigation'
+import { useActionToast } from '@/hooks/use-action-toast'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import { recordClockInAction } from '../actions/timekeeping-actions'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faClock, faPlay } from '@fortawesome/free-solid-svg-icons'
-import { recordClockInAction } from './actions/timekeeping-actions'
+import { faClock } from '@fortawesome/free-solid-svg-icons'
+import type { ActionResult } from '@/lib/toast-server'
 
 interface ClockInDialogProps {
-  employeeId: string
+  employees: Array<{ id: string; first_name: string; last_name: string }>
 }
 
-export function ClockInDialog({ employeeId }: ClockInDialogProps) {
+export function ClockInDialog({ employees }: ClockInDialogProps) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [state, action, isPending] = useActionState(recordClockInAction, null)
+  const handleToast = useActionToast()
 
-  const currentTime = new Date().toLocaleTimeString('en-PH', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  })
-
-  const handleSuccess = () => {
-    if (!state?.error) {
-      setOpen(false)
-    }
-  }
-
-  if (!state?.error && open && isPending === false) {
-    handleSuccess()
-  }
+  const [state, action, isPending] = useActionState<ActionResult | null, FormData>(
+    async (prev: ActionResult | null, formData: FormData) => {
+      const result = await recordClockInAction(prev, formData)
+      handleToast(result)
+      if (result?.success) {
+        setOpen(false)
+        router.refresh()
+      }
+      return result
+    },
+    null
+  )
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-          <FontAwesomeIcon icon={faPlay} className="fa-xs" />
+        <Button className="gap-2">
+          <FontAwesomeIcon icon={faClock} />
           Clock In
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Clock In</DialogTitle>
+          <DialogDescription>Record your clock in time for today</DialogDescription>
         </DialogHeader>
 
         <form action={action} className="space-y-4">
-          <input type="hidden" name="employee_id" value={employeeId} />
+          <div className="space-y-2">
+            <Label htmlFor="employee_id">Employee *</Label>
+            <Select name="employee_id" required>
+              <SelectTrigger id="employee_id"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {employees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    {emp.first_name} {emp.last_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="space-y-2">
-            <Label htmlFor="clock_in_time">Time</Label>
+            <Label htmlFor="clock_in_time">Clock In Time *</Label>
             <Input
               id="clock_in_time"
               name="clock_in_time"
               type="time"
-              defaultValue={currentTime}
+              defaultValue={new Date().toTimeString().slice(0, 5)}
               required
             />
-            <p className="text-xs text-muted-foreground">
-              Click the time field to adjust if needed
-            </p>
           </div>
 
-          {state?.error && (
-            <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
-              <p className="text-sm text-destructive">{state.error}</p>
-            </div>
-          )}
-
           <div className="flex gap-3 justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={isPending}
-            >
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending} className="gap-2">
-              <FontAwesomeIcon icon={faClock} className="fa-xs" />
-              {isPending ? 'Clocking In...' : 'Confirm Clock In'}
+            <Button type="submit" disabled={isPending}>
+              {isPending ? 'Clocking in...' : 'Clock In'}
             </Button>
           </div>
         </form>

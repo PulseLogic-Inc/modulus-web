@@ -4,23 +4,16 @@ import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/platform/tenants'
 import { requireRole } from '@/platform/permissions'
 import { ClockInSchema, ClockOutSchema, ManualEntrySchema } from '@/domains/timekeeping/types'
+import { toasts, createActionResult } from '@/lib/toast-server'
 import { recordClockOut, recordManualEntry } from '@/domains/timekeeping/services/timekeeping-service'
 import { findRecordByDate, insertRecord } from '@/domains/timekeeping/repositories/timekeeping-repository'
 import type { Enums } from '@/types/supabase'
 
-/**
- * Clock in action
- * Creates a timekeeping record with clock_in time
- * Status: 'incomplete' (waiting for clock out)
- */
 export async function recordClockInAction(
-  _prev: { error?: string } | null,
+  _prev: unknown,
   formData: FormData,
-): Promise<{ error?: string } | null> {
-  const { id: tenantId, role, userId } = await requireTenant()
-  // Clock in: allow staff to clock in themselves, or admins to clock in others
-  // For MVP, allow any authenticated user to clock in
-  // TODO: Add role check if needed (e.g., only staff or hr_admin)
+) {
+  const { id: tenantId, userId } = await requireTenant()
 
   const raw = {
     employee_id: formData.get('employee_id'),
@@ -29,19 +22,27 @@ export async function recordClockInAction(
 
   const parsed = ClockInSchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
+    return createActionResult(
+      false,
+      undefined,
+      parsed.error.issues?.[0]?.message ?? 'Invalid input',
+      toasts.error('Validation failed', parsed.error.issues?.[0]?.message)
+    )
   }
 
   try {
     const today = new Date().toISOString().split('T')[0]
 
-    // Check if record already exists
     const existing = await findRecordByDate(tenantId, parsed.data.employee_id, today)
     if (existing) {
-      return { error: 'You have already clocked in today' }
+      return createActionResult(
+        false,
+        undefined,
+        'Already clocked in today',
+        toasts.error('Already clocked in', 'You have already clocked in today')
+      )
     }
 
-    // Insert new record with clock_in
     await insertRecord({
       tenant_id: tenantId,
       employee_id: parsed.data.employee_id,
@@ -59,27 +60,30 @@ export async function recordClockInAction(
       auto_flagged: false,
       flag_reason: null,
     })
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to record clock in' }
-  }
 
-  revalidatePath('/timekeeping')
-  return null
+    revalidatePath('/timekeeping')
+    return createActionResult(
+      true,
+      undefined,
+      undefined,
+      toasts.success('Clocked in successfully!')
+    )
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to record clock in'
+    return createActionResult(
+      false,
+      undefined,
+      message,
+      toasts.error('Clock in failed', message)
+    )
+  }
 }
 
-/**
- * Clock out action
- * Calls recordClockOut service which:
- * 1. Fetches today's record (must have clock_in)
- * 2. Calculates worked hours via Worked Hours Engine
- * 3. Auto-flags anomalies
- * 4. Logs audit
- */
 export async function recordClockOutAction(
-  _prev: { error?: string } | null,
+  _prev: unknown,
   formData: FormData,
-): Promise<{ error?: string } | null> {
-  const { id: tenantId, role, userId } = await requireTenant()
+) {
+  const { id: tenantId, userId } = await requireTenant()
 
   const raw = {
     employee_id: formData.get('employee_id'),
@@ -88,28 +92,38 @@ export async function recordClockOutAction(
 
   const parsed = ClockOutSchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
+    return createActionResult(
+      false,
+      undefined,
+      parsed.error.issues?.[0]?.message ?? 'Invalid input',
+      toasts.error('Validation failed', parsed.error.issues?.[0]?.message)
+    )
   }
 
   try {
     await recordClockOut(tenantId, userId, parsed.data.employee_id, parsed.data.clock_out_time)
+    revalidatePath('/timekeeping')
+    return createActionResult(
+      true,
+      undefined,
+      undefined,
+      toasts.success('Clocked out successfully!')
+    )
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to record clock out' }
+    const message = err instanceof Error ? err.message : 'Failed to record clock out'
+    return createActionResult(
+      false,
+      undefined,
+      message,
+      toasts.error('Clock out failed', message)
+    )
   }
-
-  revalidatePath('/timekeeping')
-  return null
 }
 
-/**
- * Manual timekeeping entry action
- * For past dates or system corrections
- * Requires HR Admin or Owner role
- */
 export async function manualEntryAction(
-  _prev: { error?: string } | null,
+  _prev: unknown,
   formData: FormData,
-): Promise<{ error?: string } | null> {
+) {
   const { id: tenantId, role, userId } = await requireTenant()
   requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
 
@@ -122,7 +136,12 @@ export async function manualEntryAction(
 
   const parsed = ManualEntrySchema.safeParse(raw)
   if (!parsed.success) {
-    return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
+    return createActionResult(
+      false,
+      undefined,
+      parsed.error.issues?.[0]?.message ?? 'Invalid input',
+      toasts.error('Validation failed', parsed.error.issues?.[0]?.message)
+    )
   }
 
   try {
@@ -134,10 +153,20 @@ export async function manualEntryAction(
       parsed.data.worked_minutes,
       parsed.data.reason,
     )
+    revalidatePath('/timekeeping')
+    return createActionResult(
+      true,
+      undefined,
+      undefined,
+      toasts.success('Manual entry recorded!')
+    )
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to record manual entry' }
+    const message = err instanceof Error ? err.message : 'Failed to record manual entry'
+    return createActionResult(
+      false,
+      undefined,
+      message,
+      toasts.error('Manual entry failed', message)
+    )
   }
-
-  revalidatePath('/timekeeping')
-  return null
 }

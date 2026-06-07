@@ -1,113 +1,91 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { useRouter } from 'next/navigation'
+import { useActionToast } from '@/hooks/use-action-toast'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import { recordClockOutAction } from '../actions/timekeeping-actions'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faClock, faStop, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
-import { recordClockOutAction } from './actions/timekeeping-actions'
-import type { Database } from '@/types/supabase'
-
-type TimekeepingRecord = Database['public']['Tables']['timekeeping_records']['Row']
+import { faClockSlash } from '@fortawesome/free-solid-svg-icons'
+import type { ActionResult } from '@/lib/toast-server'
 
 interface ClockOutDialogProps {
-  employeeId: string
-  clockInRecord?: TimekeepingRecord
+  employees: Array<{ id: string; first_name: string; last_name: string }>
+  disabledEmployees?: string[]
 }
 
-export function ClockOutDialog({ employeeId, clockInRecord }: ClockOutDialogProps) {
+export function ClockOutDialog({ employees, disabledEmployees = [] }: ClockOutDialogProps) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [state, action, isPending] = useActionState(recordClockOutAction, null)
+  const handleToast = useActionToast()
 
-  const currentTime = new Date().toLocaleTimeString('en-PH', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  })
-
-  const isDisabled = !clockInRecord || clockInRecord.status !== 'incomplete'
-
-  const handleSuccess = () => {
-    if (!state?.error) {
-      setOpen(false)
-    }
-  }
-
-  if (!state?.error && open && isPending === false) {
-    handleSuccess()
-  }
+  const [state, action, isPending] = useActionState<ActionResult | null, FormData>(
+    async (prev: ActionResult | null, formData: FormData) => {
+      const result = await recordClockOutAction(prev, formData)
+      handleToast(result)
+      if (result?.success) {
+        setOpen(false)
+        router.refresh()
+      }
+      return result
+    },
+    null
+  )
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
-          size="sm"
-          variant={isDisabled ? 'secondary' : 'destructive'}
-          className="gap-2"
-          disabled={isDisabled}
-        >
-          <FontAwesomeIcon icon={faStop} className="fa-xs" />
+        <Button variant="outline" className="gap-2">
+          <FontAwesomeIcon icon={faClockSlash} />
           Clock Out
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Clock Out</DialogTitle>
+          <DialogDescription>Record your clock out time</DialogDescription>
         </DialogHeader>
 
-        {clockInRecord && (
-          <div className="space-y-2 p-3 rounded-md bg-muted">
-            <p className="text-xs text-muted-foreground">Clocked in at:</p>
-            <p className="text-sm font-mono font-bold">{clockInRecord.clock_in}</p>
-          </div>
-        )}
-
         <form action={action} className="space-y-4">
-          <input type="hidden" name="employee_id" value={employeeId} />
+          <div className="space-y-2">
+            <Label htmlFor="employee_id">Employee *</Label>
+            <Select name="employee_id" required>
+              <SelectTrigger id="employee_id"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {employees.map((emp) => (
+                  <SelectItem
+                    key={emp.id}
+                    value={emp.id}
+                    disabled={disabledEmployees.includes(emp.id)}
+                  >
+                    {emp.first_name} {emp.last_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="space-y-2">
-            <Label htmlFor="clock_out_time">Clock Out Time</Label>
+            <Label htmlFor="clock_out_time">Clock Out Time *</Label>
             <Input
               id="clock_out_time"
               name="clock_out_time"
               type="time"
-              defaultValue={currentTime}
+              defaultValue={new Date().toTimeString().slice(0, 5)}
               required
             />
-            <p className="text-xs text-muted-foreground">
-              Click the time field to adjust if needed
-            </p>
           </div>
 
-          {state?.error && (
-            <Alert variant="destructive">
-              <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
-              <AlertDescription>{state.error}</AlertDescription>
-            </Alert>
-          )}
-
-          <Alert className="bg-blue-50 border-blue-200">
-            <FontAwesomeIcon icon={faClock} className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-sm text-blue-800">
-              Your worked hours will be calculated automatically. Anomalies (if any) will be flagged for review.
-            </AlertDescription>
-          </Alert>
-
           <div className="flex gap-3 justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={isPending}
-            >
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending || isDisabled} className="gap-2">
-              <FontAwesomeIcon icon={faClock} className="fa-xs" />
-              {isPending ? 'Clocking Out...' : 'Confirm Clock Out'}
+            <Button type="submit" disabled={isPending}>
+              {isPending ? 'Clocking out...' : 'Clock Out'}
             </Button>
           </div>
         </form>
