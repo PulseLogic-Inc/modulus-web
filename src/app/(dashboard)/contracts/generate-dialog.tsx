@@ -1,6 +1,8 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useActionToast } from '@/hooks/use-action-toast'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -9,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faFileContract, faPlus, faInfoCircle } from '@fortawesome/free-solid-svg-icons'
 import { generateContractAction } from './actions/contract-actions'
+import type { ActionResult } from '@/lib/toast-server'
 import type { ContractType } from '@/domains/contracts/types'
 
 interface GenerateContractDialogProps {
@@ -39,64 +42,54 @@ const CONTRACT_TYPES: { value: ContractType; label: string; description: string 
   },
   {
     value: 'fixed_term',
-    label: 'Fixed-Term',
-    description: 'Employment for a fixed duration; renewable upon mutual agreement',
-  },
-  {
-    value: 'contractual',
-    label: 'Contractual',
-    description: 'Services rendered on a contractual basis',
+    label: 'Fixed Term',
+    description: 'Employment for a specified period or until completion of work',
   },
 ]
 
 export function GenerateContractDialog({ employeeId, employeeName }: GenerateContractDialogProps) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [selectedType, setSelectedType] = useState<ContractType>('regular')
-  const [state, action, isPending] = useActionState(generateContractAction, null)
+  const handleToast = useActionToast()
 
-  const selectedTypeInfo = CONTRACT_TYPES.find((t) => t.value === selectedType)
-
-  const handleSuccess = () => {
-    if (!state?.error) {
-      setOpen(false)
-    }
-  }
-
-  if (!state?.error && open && isPending === false) {
-    handleSuccess()
-  }
+  const [state, action, isPending] = useActionState<ActionResult | null, FormData>(
+    async (prev: ActionResult | null, formData: FormData) => {
+      const result = await generateContractAction(prev, formData)
+      handleToast(result)
+      if (result?.success) {
+        setOpen(false)
+        router.push(`/contracts/${result.data?.contractId}`)
+      }
+      return result
+    },
+    null
+  )
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" className="gap-2">
-          <FontAwesomeIcon icon={faPlus} className="fa-xs" />
+          <FontAwesomeIcon icon={faPlus} />
           Generate Contract
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Generate Employment Contract</DialogTitle>
+          <DialogTitle>Generate Contract</DialogTitle>
         </DialogHeader>
-
-        <div className="space-y-2 p-3 rounded-md bg-muted">
-          <p className="text-xs text-muted-foreground">For:</p>
-          <p className="text-sm font-bold">{employeeName}</p>
-        </div>
 
         <form action={action} className="space-y-4">
           <input type="hidden" name="employee_id" value={employeeId} />
 
           <div className="space-y-2">
+            <Label>Employee</Label>
+            <div className="text-sm font-medium">{employeeName}</div>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="contract_type">Contract Type *</Label>
-            <Select
-              name="contract_type"
-              value={selectedType}
-              onValueChange={(value) => setSelectedType(value as ContractType)}
-            >
-              <SelectTrigger id="contract_type">
-                <SelectValue />
-              </SelectTrigger>
+            <Select name="contract_type" required>
+              <SelectTrigger id="contract_type"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {CONTRACT_TYPES.map((type) => (
                   <SelectItem key={type.value} value={type.value}>
@@ -107,40 +100,19 @@ export function GenerateContractDialog({ employeeId, employeeName }: GenerateCon
             </Select>
           </div>
 
-          {selectedTypeInfo && (
-            <Alert className="bg-blue-50 border-blue-200">
-              <FontAwesomeIcon icon={faInfoCircle} className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-xs text-blue-800">
-                {selectedTypeInfo.description}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {state?.error && (
-            <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
-              <p className="text-sm text-destructive">{state.error}</p>
-            </div>
-          )}
-
-          <Alert className="bg-amber-50 border-amber-200">
-            <FontAwesomeIcon icon={faFileContract} className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-xs text-amber-800">
-              A draft contract will be created. You can review, modify, and issue it afterwards.
+          <Alert className="bg-blue-50 border-blue-200">
+            <FontAwesomeIcon icon={faInfoCircle} className="text-blue-600" />
+            <AlertDescription className="text-sm">
+              A PH-standard employment contract will be generated based on your tenant configuration.
             </AlertDescription>
           </Alert>
 
           <div className="flex gap-3 justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={isPending}
-            >
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending} className="gap-2">
-              <FontAwesomeIcon icon={faFileContract} className="fa-xs" />
-              {isPending ? 'Generating...' : 'Generate Contract'}
+            <Button type="submit" disabled={isPending}>
+              {isPending ? 'Generating...' : 'Generate'}
             </Button>
           </div>
         </form>

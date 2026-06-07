@@ -9,6 +9,7 @@ import {
   IssueContractSchema,
   VoidContractSchema,
 } from '@/domains/contracts/types'
+import { toasts, createActionResult } from '@/lib/toast-server'
 import {
   generateContract,
   issueContract,
@@ -16,16 +17,10 @@ import {
 } from '@/domains/contracts/services/contract-service'
 import type { Enums } from '@/types/supabase'
 
-/**
- * Generate contract action
- * Creates a contract in 'draft' status (no PDF yet)
- * Renders template with employee data
- * Requires Owner or HR Admin role
- */
 export async function generateContractAction(
-  _prev: { error?: string } | null,
+  _prev: unknown,
   formData: FormData,
-): Promise<{ error?: string } | null> {
+) {
   const { id: tenantId, role, userId } = await requireTenant()
   requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
 
@@ -36,36 +31,42 @@ export async function generateContractAction(
 
   const parsed = GenerateContractSchema.safeParse(raw)
   if (!parsed.success) {
-    const firstError = parsed.error.issues?.[0]?.message ?? 'Invalid input'
-    return { error: firstError }
+    return createActionResult(
+      false,
+      undefined,
+      parsed.error.issues?.[0]?.message ?? 'Invalid input',
+      toasts.error('Validation failed', parsed.error.issues?.[0]?.message)
+    )
   }
 
-  let contract
   try {
-    contract = await generateContract(
+    const contract = await generateContract(
       tenantId,
       userId,
       parsed.data.employee_id,
       parsed.data.contract_type,
     )
+    return createActionResult(
+      true,
+      { contractId: contract.id },
+      undefined,
+      toasts.success('Contract generated!')
+    )
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to generate contract' }
+    const message = err instanceof Error ? err.message : 'Failed to generate contract'
+    return createActionResult(
+      false,
+      undefined,
+      message,
+      toasts.error('Generation failed', message)
+    )
   }
-
-  // Redirect to contract review page
-  redirect(`/contracts/${contract.id}`)
 }
 
-/**
- * Issue contract action
- * Marks contract as 'issued', generates PDF, uploads to Storage
- * Supersedes previous active contract if exists
- * Requires Owner or HR Admin role
- */
 export async function issueContractAction(
-  _prev: { error?: string } | null,
+  _prev: unknown,
   formData: FormData,
-): Promise<{ error?: string } | null> {
+) {
   const { id: tenantId, role, userId } = await requireTenant()
   requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
 
@@ -75,32 +76,40 @@ export async function issueContractAction(
 
   const parsed = IssueContractSchema.safeParse(raw)
   if (!parsed.success) {
-    const firstError = parsed.error.issues?.[0]?.message ?? 'Invalid input'
-    return { error: firstError }
+    return createActionResult(
+      false,
+      undefined,
+      parsed.error.issues?.[0]?.message ?? 'Invalid input',
+      toasts.error('Validation failed', parsed.error.issues?.[0]?.message)
+    )
   }
 
   try {
     await issueContract(tenantId, userId, parsed.data.contract_id)
+    revalidatePath(`/contracts/${parsed.data.contract_id}`)
+    revalidatePath('/employees')
+    return createActionResult(
+      true,
+      undefined,
+      undefined,
+      toasts.success('Contract issued successfully!')
+    )
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to issue contract' }
+    const message = err instanceof Error ? err.message : 'Failed to issue contract'
+    return createActionResult(
+      false,
+      undefined,
+      message,
+      toasts.error('Issue failed', message)
+    )
   }
-
-  revalidatePath(`/contracts/${parsed.data.contract_id}`)
-  revalidatePath('/employees')
-  return null
 }
 
-/**
- * Void contract action
- * Marks contract as 'voided' (terminal state)
- * Requires reason (minimum 10 characters)
- * Requires Owner or HR Admin role
- */
 export async function voidContractAction(
   contractId: string,
-  _prev: { error?: string } | null,
+  _prev: unknown,
   formData: FormData,
-): Promise<{ error?: string } | null> {
+) {
   const { id: tenantId, role, userId } = await requireTenant()
   requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
 
@@ -111,16 +120,30 @@ export async function voidContractAction(
 
   const parsed = VoidContractSchema.safeParse(raw)
   if (!parsed.success) {
-    const firstError = parsed.error.issues?.[0]?.message ?? 'Invalid input'
-    return { error: firstError }
+    return createActionResult(
+      false,
+      undefined,
+      parsed.error.issues?.[0]?.message ?? 'Invalid input',
+      toasts.error('Validation failed', parsed.error.issues?.[0]?.message)
+    )
   }
 
   try {
     await voidContract(tenantId, userId, parsed.data.contract_id, parsed.data.reason)
+    revalidatePath(`/contracts/${contractId}`)
+    return createActionResult(
+      true,
+      undefined,
+      undefined,
+      toasts.success('Contract voided!')
+    )
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to void contract' }
+    const message = err instanceof Error ? err.message : 'Failed to void contract'
+    return createActionResult(
+      false,
+      undefined,
+      message,
+      toasts.error('Void failed', message)
+    )
   }
-
-  revalidatePath(`/contracts/${contractId}`)
-  return null
 }
