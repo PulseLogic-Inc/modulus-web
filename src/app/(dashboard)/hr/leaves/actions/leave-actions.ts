@@ -1,101 +1,50 @@
 'use server'
-
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/platform/tenants'
 import { requireRole } from '@/platform/permissions'
-import { LeaveRequestSchema, LeaveApprovalSchema } from '@/domains/hr/types'
-import {
-  submitLeaveRequest,
-  approveLeaveRequest,
-  rejectLeaveRequest,
-} from '@/domains/hr/services/leave-service'
+import { LeaveRequestSchema, ApprovalSchema } from '@/domains/hr/types'
+import { toasts, createActionResult } from '@/lib/toast-server'
+import { submitLeaveRequest, approveLeaveRequest, rejectLeaveRequest } from '@/domains/hr/services/leave-service'
 import type { Enums } from '@/types/supabase'
 
-/**
- * Submit a new leave request
- * Anyone in the tenant can submit leave requests
- */
-export async function submitLeaveAction(
-  _prev: { error?: string } | null,
-  formData: FormData,
-): Promise<{ error?: string; leaveRequestId?: string } | null> {
+export async function submitLeaveAction(_prev: unknown, formData: FormData) {
   const { id: tenantId, userId } = await requireTenant()
-
-  const parsed = LeaveRequestSchema.safeParse({
-    leave_type: formData.get('leave_type'),
-    start_date: formData.get('start_date'),
-    end_date: formData.get('end_date'),
-    days: Number(formData.get('days')),
-    is_half_day: formData.get('is_half_day') === 'on',
-    reason: formData.get('reason'),
-  })
-
-  if (!parsed.success) {
-    return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
-  }
-
+  const parsed = LeaveRequestSchema.safeParse({ leave_type: formData.get('leave_type'), start_date: formData.get('start_date'), end_date: formData.get('end_date'), reason: formData.get('reason') })
+  if (!parsed.success) return createActionResult(false, undefined, parsed.error.issues?.[0]?.message, toasts.error('Validation failed', parsed.error.issues?.[0]?.message))
   try {
-    const leave = await submitLeaveRequest(tenantId, userId, userId, parsed.data)
-
+    const leave = await submitLeaveRequest(tenantId, userId, parsed.data)
     revalidatePath('/hr/leaves')
-    return { leaveRequestId: leave.id }
+    return createActionResult(true, { leaveId: leave.id }, undefined, toasts.success('Leave request submitted!'))
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to submit leave request' }
+    const msg = err instanceof Error ? err.message : 'Failed to submit'
+    return createActionResult(false, undefined, msg, toasts.error('Submission failed', msg))
   }
 }
 
-/**
- * Approve a leave request
- * Only HR Admin or Owner can approve
- */
-export async function approveLeaveAction(leaveRequestId: string): Promise<{ error?: string } | null> {
+export async function approveLeaveAction(leaveId: string, _prev: unknown, formData: FormData) {
   const { id: tenantId, role, userId } = await requireTenant()
   requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
-
   try {
-    await approveLeaveRequest(tenantId, leaveRequestId, userId)
-
+    await approveLeaveRequest(tenantId, userId, leaveId)
     revalidatePath('/hr/leaves')
-    return null
+    return createActionResult(true, undefined, undefined, toasts.success('Leave request approved!'))
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to approve leave request' }
+    const msg = err instanceof Error ? err.message : 'Failed to approve'
+    return createActionResult(false, undefined, msg, toasts.error('Approval failed', msg))
   }
 }
 
-/**
- * Reject a leave request
- * Only HR Admin or Owner can reject
- */
-export async function rejectLeaveAction(
-  leaveRequestId: string,
-  _prev: { error?: string } | null,
-  formData: FormData,
-): Promise<{ error?: string } | null> {
+export async function rejectLeaveAction(leaveId: string, _prev: unknown, formData: FormData) {
   const { id: tenantId, role, userId } = await requireTenant()
   requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
-
-  const parsed = LeaveApprovalSchema.safeParse({
-    leave_request_id: leaveRequestId,
-    approval_status: 'rejected',
-    rejection_reason: formData.get('rejection_reason'),
-  })
-
-  if (!parsed.success) {
-    return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
-  }
-
-  const { rejection_reason } = parsed.data
-
-  if (!rejection_reason || rejection_reason.length < 10) {
-    return { error: 'Rejection reason must be at least 10 characters' }
-  }
-
+  const parsed = ApprovalSchema.safeParse({ reason: formData.get('reason') })
+  if (!parsed.success) return createActionResult(false, undefined, parsed.error.issues?.[0]?.message, toasts.error('Validation failed', parsed.error.issues?.[0]?.message))
   try {
-    await rejectLeaveRequest(tenantId, leaveRequestId, rejection_reason, userId)
-
+    await rejectLeaveRequest(tenantId, userId, leaveId, parsed.data.reason)
     revalidatePath('/hr/leaves')
-    return null
+    return createActionResult(true, undefined, undefined, toasts.success('Leave request rejected!'))
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to reject leave request' }
+    const msg = err instanceof Error ? err.message : 'Failed to reject'
+    return createActionResult(false, undefined, msg, toasts.error('Rejection failed', msg))
   }
 }

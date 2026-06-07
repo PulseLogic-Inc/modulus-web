@@ -1,105 +1,50 @@
 'use server'
-
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/platform/tenants'
 import { requireRole } from '@/platform/permissions'
-import { OvertimeRequestSchema, OvertimeApprovalSchema } from '@/domains/hr/types'
-import {
-  submitOvertimeRequest,
-  approveOvertimeRequest,
-  rejectOvertimeRequest,
-} from '@/domains/hr/services/overtime-service'
+import { OvertimeRequestSchema, ApprovalSchema } from '@/domains/hr/types'
+import { toasts, createActionResult } from '@/lib/toast-server'
+import { submitOvertimeRequest, approveOvertimeRequest, rejectOvertimeRequest } from '@/domains/hr/services/overtime-service'
 import type { Enums } from '@/types/supabase'
 
-/**
- * Submit a new overtime request
- * Anyone in the tenant can submit OT requests
- */
-export async function submitOvertimeAction(
-  _prev: { error?: string } | null,
-  formData: FormData,
-): Promise<{ error?: string; overtimeId?: string } | null> {
+export async function submitOvertimeAction(_prev: unknown, formData: FormData) {
   const { id: tenantId, userId } = await requireTenant()
-
-  const parsed = OvertimeRequestSchema.safeParse({
-    request_date: formData.get('request_date'),
-    requested_hours: Number(formData.get('requested_hours')),
-    reason: formData.get('reason'),
-  })
-
-  if (!parsed.success) {
-    return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
-  }
-
+  const parsed = OvertimeRequestSchema.safeParse({ employee_id: formData.get('employee_id'), date: formData.get('date'), ot_hours: Number(formData.get('ot_hours')), reason: formData.get('reason') })
+  if (!parsed.success) return createActionResult(false, undefined, parsed.error.issues?.[0]?.message, toasts.error('Validation failed', parsed.error.issues?.[0]?.message))
   try {
-    const overtime = await submitOvertimeRequest(tenantId, userId, userId, parsed.data)
-
+    const ot = await submitOvertimeRequest(tenantId, userId, parsed.data)
     revalidatePath('/hr/overtime')
-    return { overtimeId: overtime.id }
+    return createActionResult(true, { otId: ot.id }, undefined, toasts.success('OT request submitted!'))
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to submit overtime request' }
+    const msg = err instanceof Error ? err.message : 'Failed to submit'
+    return createActionResult(false, undefined, msg, toasts.error('Submission failed', msg))
   }
 }
 
-/**
- * Approve an overtime request
- * Only HR Admin or Owner can approve
- */
-export async function approveOvertimeAction(
-  overtimeId: string,
-  _prev: { error?: string } | null,
-  formData: FormData,
-): Promise<{ error?: string } | null> {
+export async function approveOvertimeAction(otId: string, _prev: unknown, formData: FormData) {
   const { id: tenantId, role, userId } = await requireTenant()
   requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
-
-  const costEstimate = formData.get('cost_estimate_centavos')
-  const costEstimateCentavos = costEstimate ? Number(costEstimate) : undefined
-
   try {
-    await approveOvertimeRequest(tenantId, overtimeId, userId, costEstimateCentavos)
-
+    await approveOvertimeRequest(tenantId, userId, otId)
     revalidatePath('/hr/overtime')
-    return null
+    return createActionResult(true, undefined, undefined, toasts.success('OT request approved!'))
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to approve overtime request' }
+    const msg = err instanceof Error ? err.message : 'Failed to approve'
+    return createActionResult(false, undefined, msg, toasts.error('Approval failed', msg))
   }
 }
 
-/**
- * Reject an overtime request
- * Only HR Admin or Owner can reject
- */
-export async function rejectOvertimeAction(
-  overtimeId: string,
-  _prev: { error?: string } | null,
-  formData: FormData,
-): Promise<{ error?: string } | null> {
+export async function rejectOvertimeAction(otId: string, _prev: unknown, formData: FormData) {
   const { id: tenantId, role, userId } = await requireTenant()
   requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
-
-  const parsed = OvertimeApprovalSchema.safeParse({
-    overtime_id: overtimeId,
-    approval_status: 'rejected',
-    rejection_reason: formData.get('rejection_reason'),
-  })
-
-  if (!parsed.success) {
-    return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
-  }
-
-  const { rejection_reason } = parsed.data
-
-  if (!rejection_reason || rejection_reason.length < 10) {
-    return { error: 'Rejection reason must be at least 10 characters' }
-  }
-
+  const parsed = ApprovalSchema.safeParse({ reason: formData.get('reason') })
+  if (!parsed.success) return createActionResult(false, undefined, parsed.error.issues?.[0]?.message, toasts.error('Validation failed', parsed.error.issues?.[0]?.message))
   try {
-    await rejectOvertimeRequest(tenantId, overtimeId, rejection_reason, userId)
-
+    await rejectOvertimeRequest(tenantId, userId, otId, parsed.data.reason)
     revalidatePath('/hr/overtime')
-    return null
+    return createActionResult(true, undefined, undefined, toasts.success('OT request rejected!'))
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to reject overtime request' }
+    const msg = err instanceof Error ? err.message : 'Failed to reject'
+    return createActionResult(false, undefined, msg, toasts.error('Rejection failed', msg))
   }
 }
