@@ -1,10 +1,7 @@
 import { requireTenant } from '@/platform/tenants'
 import { getJobTitles } from '@/domains/hr/services/job-title-service'
 import { PageHeader } from '@/components/shared/page-header'
-import { DataEmpty } from '@/components/shared/data-empty'
-import { JobTitleCard } from './job-title-card'
-import { JobTitleFormDialog } from './job-title-form-dialog'
-import { faBriefcase } from '@fortawesome/free-solid-svg-icons'
+import { JobTitlesContent } from './job-titles-content'
 
 export default async function JobTitlesPage() {
   const { id: tenantId } = await requireTenant()
@@ -16,26 +13,11 @@ export default async function JobTitlesPage() {
         <PageHeader
           label="HR Settings"
           title="Job Titles"
-          description="Create and manage job title positions in your organization."
+          description="Create and manage job position titles in your organization."
           className="mb-0"
         />
-        <JobTitleFormDialog mode="create" />
       </div>
-
-      {jobTitles.length === 0 ? (
-        <DataEmpty
-          icon={faBriefcase}
-          title="No job titles yet"
-          description="Add your first job title to start assigning employees to positions."
-          action={<JobTitleFormDialog mode="create" />}
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {jobTitles.map((title) => (
-            <JobTitleCard key={title.id} jobTitle={title} />
-          ))}
-        </div>
-      )}
+      <JobTitlesContent jobTitles={jobTitles} />
     </section>
   )
 }

@@ -66,6 +66,11 @@ export const WorkLocationSchema = z.object({
 })
 export type WorkLocationInput = z.infer<typeof WorkLocationSchema>
 
+export const JobTitleSchema = z.object({
+  name: z.string().min(1, 'Job title name is required').max(100),
+})
+export type JobTitleInput = z.infer<typeof JobTitleSchema>
+
 export const ShiftPolicyDaySchema = z.object({
   day_of_week:   z.number().int().min(0).max(6),
   is_rest_day:   z.boolean(),
