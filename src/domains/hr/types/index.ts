@@ -165,3 +165,21 @@ export const ApprovalSchema = z.object({
   rejection_reason: z.string().max(500).optional(),
 })
 export type ApprovalInput = z.infer<typeof ApprovalSchema>
+
+export const OvertimeRequestSchema = z.object({
+  ot_date:           z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD'),
+  ot_hours:          z.number().min(0.5, 'Minimum 0.5 hours').max(24, 'Maximum 24 hours'),
+  ot_type:           z.enum(['regular', 'rest_day', 'holiday'], { message: 'Invalid OT type' }),
+  reason_category:   z.string().min(1, 'Reason category is required'),
+  reason_detail:     z.string().max(500).optional(),
+  multiplier:        z.number().min(1.25, 'Multiplier must be at least 1.25'),
+})
+export type OvertimeRequestInput = z.infer<typeof OvertimeRequestSchema>
+
+export const OvertimeApprovalSchema = z.object({
+  overtime_id:       z.string().uuid('Overtime request ID is required'),
+  approval_status:   z.enum(['approved', 'rejected']),
+  estimated_cost_centavos: z.number().int().min(0).optional(),
+  rejection_reason:  z.string().max(500).optional(),
+})
+export type OvertimeApprovalInput = z.infer<typeof OvertimeApprovalSchema>
