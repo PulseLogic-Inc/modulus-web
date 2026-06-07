@@ -68,12 +68,21 @@ export type WorkLocationInput = z.infer<typeof WorkLocationSchema>
 
 export const ShiftPolicyDaySchema = z.object({
   day_of_week:   z.number().int().min(0).max(6),
-  start_time:    z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:mm'),
-  end_time:      z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:mm'),
   is_rest_day:   z.boolean(),
+  start_time:    z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:mm').optional().nullable(),
+  end_time:      z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:mm').optional().nullable(),
   break_minutes: z.number().int().min(0).max(240),
   break_paid:    z.boolean(),
-})
+}).refine(
+  (data) => {
+    if (data.is_rest_day) return true
+    return data.start_time && data.end_time
+  },
+  {
+    message: 'Start and end times required for working days',
+    path: ['start_time'],
+  }
+)
 export type ShiftPolicyDayInput = z.infer<typeof ShiftPolicyDaySchema>
 
 export const ShiftPolicySchema = z.object({
