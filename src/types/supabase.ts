@@ -600,6 +600,86 @@ export type Database = {
           },
         ]
       }
+      hr_correction_requests: {
+        Row: {
+          id: string
+          tenant_id: string
+          employee_id: string
+          timekeeping_record_id: string | null
+          correction_type: string
+          proposed_value: string
+          reason: string
+          status: string
+          approved_by: string | null
+          approved_at: string | null
+          rejection_reason: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          employee_id: string
+          timekeeping_record_id?: string | null
+          correction_type: string
+          proposed_value: string
+          reason: string
+          status?: string
+          approved_by?: string | null
+          approved_at?: string | null
+          rejection_reason?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          employee_id?: string
+          timekeeping_record_id?: string | null
+          correction_type?: string
+          proposed_value?: string
+          reason?: string
+          status?: string
+          approved_by?: string | null
+          approved_at?: string | null
+          rejection_reason?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_correction_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_correction_requests_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_correction_requests_timekeeping_record_id_fkey"
+            columns: ["timekeeping_record_id"]
+            isOneToOne: false
+            referencedRelation: "timekeeping_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_correction_requests_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_titles: {
         Row: {
           created_at: string
@@ -1964,3 +2044,5 @@ export const Constants = {
     },
   },
 } as const
+A new version of Supabase CLI is available: v2.105.0 (currently installed v2.75.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
