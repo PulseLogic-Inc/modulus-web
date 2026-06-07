@@ -1,6 +1,6 @@
 'use server'
 
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createActionSupabaseClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -24,7 +24,7 @@ export async function signInAction(
     return { error: 'Invalid email or password.' }
   }
 
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createActionSupabaseClient()
   const { error } = await supabase.auth.signInWithPassword(parsed.data)
 
   if (error) return { error: 'Invalid email or password.' }
@@ -34,7 +34,7 @@ export async function signInAction(
 }
 
 export async function signOutAction(): Promise<void> {
-  const supabase = await createServerSupabaseClient()
+  const supabase = await createActionSupabaseClient()
   await supabase.auth.signOut()
   revalidatePath('/', 'layout')
   redirect('/sign-in')
