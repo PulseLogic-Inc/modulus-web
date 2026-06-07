@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent } from '@/components/ui/card'
 import { useActionToast } from '@/hooks/use-action-toast'
 import { createShiftPolicyAction, updateShiftPolicyAction } from './actions/shift-policy-actions'
+import type { ActionResult } from '@/lib/toast-server'
 import type { Database } from '@/types/supabase'
 
 type ShiftPolicyWithDays = Database['public']['Tables']['shift_policies']['Row'] & {
@@ -34,8 +35,8 @@ interface DaySchedule {
 export function ShiftPolicyForm({ mode, policy }: ShiftPolicyFormProps) {
   const handleToast = useActionToast()
 
-  const [state, action, isPending] = useActionState(
-    async (prev, formData) => {
+  const [state, action, isPending] = useActionState<ActionResult | null, FormData>(
+    async (prev: ActionResult | null, formData: FormData) => {
       const result = await (mode === 'edit' && policy
         ? updateShiftPolicyAction(policy.id, prev, formData)
         : createShiftPolicyAction(prev, formData))
