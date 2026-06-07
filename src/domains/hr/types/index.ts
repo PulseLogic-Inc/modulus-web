@@ -200,3 +200,32 @@ export const LeaveApprovalSchema = z.object({
   rejection_reason:  z.string().min(10, 'Reason must be at least 10 characters').max(500).optional(),
 })
 export type LeaveApprovalInput = z.infer<typeof LeaveApprovalSchema>
+
+export const PayrollCadenceSchema = z.enum(['weekly', 'semi_monthly', 'bi_weekly', 'monthly'])
+
+export const PayrollStatusSchema = z.enum(['draft', 'processing', 'generated', 'finalized', 'voided'])
+
+export const GeneratePayrollSchema = z.object({
+  payroll_period_id: z.string().uuid('Payroll period required'),
+})
+export type GeneratePayrollInput = z.infer<typeof GeneratePayrollSchema>
+
+export const FinalizePayrollSchema = z.object({
+  payroll_run_id:    z.string().uuid('Payroll run ID is required'),
+  password:          z.string().min(8, 'Password required for finalization'),
+})
+export type FinalizePayrollInput = z.infer<typeof FinalizePayrollSchema>
+
+export const ReopenPayrollSchema = z.object({
+  payroll_run_id:    z.string().uuid('Payroll run ID is required'),
+  reason:            z.string().min(50, 'Reason must be at least 50 characters'),
+  password:          z.string().min(8, 'Password required'),
+})
+export type ReopenPayrollInput = z.infer<typeof ReopenPayrollSchema>
+
+export const VoidPayrollSchema = z.object({
+  payroll_run_id:    z.string().uuid('Payroll run ID is required'),
+  void_reason:       z.string().min(50, 'Reason must be at least 50 characters'),
+  password:          z.string().min(8, 'Password required'),
+})
+export type VoidPayrollInput = z.infer<typeof VoidPayrollSchema>
