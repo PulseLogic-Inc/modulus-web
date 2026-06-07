@@ -6,6 +6,7 @@ import { requireTenant } from '@/platform/tenants'
 import { requireRole } from '@/platform/permissions'
 import { logAudit } from '@/platform/audit'
 import { EmployeeSchema, StatusChangeSchema } from '@/domains/hr/types'
+import { toasts, createActionResult } from '@/lib/toast-server'
 import {
   createEmployee,
   updateEmployeeDetails,
@@ -50,7 +51,7 @@ export async function createEmployeeAction(
     philhealth_number:       formData.get('philhealth_number') || '',
     pagibig_number:          formData.get('pagibig_number') || '',
     sil_exempt:              formData.get('sil_exempt') === 'true',
-    status:                   'probationary', // New employees start as probationary by default
+    status:                   'probationary',
   }
 
   const parsed = EmployeeSchema.safeParse(raw)
@@ -116,9 +117,9 @@ export async function updateEmployeeAction(
 
 export async function changeEmployeeStatusAction(
   employeeId: string,
-  _prev: { error?: string } | null,
+  _prev: unknown,
   formData: FormData,
-): Promise<{ error?: string } | null> {
+) {
   const { id: tenantId, role, userId } = await requireTenant()
   requireRole(role as Enums<'user_role'>, ['owner', 'hr_admin'])
 
@@ -127,20 +128,40 @@ export async function changeEmployeeStatusAction(
     reason:         formData.get('reason') || undefined,
     effective_date: formData.get('effective_date'),
   })
-  if (!parsed.success) return { error: parsed.error.issues?.[0]?.message ?? 'Invalid input' }
+
+  if (!parsed.success) {
+    return createActionResult(
+      false,
+      undefined,
+      parsed.error.issues?.[0]?.message ?? 'Invalid input',
+      toasts.error('Validation failed', parsed.error.issues?.[0]?.message)
+    )
+  }
 
   try {
     await changeEmployeeStatus(tenantId, userId, employeeId, parsed.data)
+    revalidatePath(`/hr/${employeeId}`)
+    revalidatePath('/hr')
+    return createActionResult(
+      true,
+      undefined,
+      undefined,
+      toasts.success('Employee status updated!')
+    )
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to change status' }
+    const message = err instanceof Error ? err.message : 'Failed to change status'
+    return createActionResult(
+      false,
+      undefined,
+      message,
+      toasts.error('Failed to update status', message)
+    )
   }
-
-  revalidatePath(`/hr/${employeeId}`)
-  revalidatePath('/hr')
-  return null
 }
 
-export async function archiveEmployeeAction(employeeId: string): Promise<{ error?: string } | null> {
+export async function archiveEmployeeAction(
+  employeeId: string,
+) {
   const { id: tenantId, role, userId } = await requireTenant()
   requireRole(role as Enums<'user_role'>, ['owner'])
 
@@ -154,9 +175,19 @@ export async function archiveEmployeeAction(employeeId: string): Promise<{ error
       entityId: employeeId,
       reason: 'Employee archived',
     })
+    return createActionResult(
+      true,
+      undefined,
+      undefined,
+      toasts.success('Employee archived!')
+    )
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Failed to archive employee' }
+    const message = err instanceof Error ? err.message : 'Failed to archive employee'
+    return createActionResult(
+      false,
+      undefined,
+      message,
+      toasts.error('Failed to archive', message)
+    )
   }
-
-  redirect('/hr')
 }

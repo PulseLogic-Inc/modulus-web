@@ -1,15 +1,18 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useActionToast } from '@/hooks/use-action-toast'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faEllipsisVertical } from '@fortawesome/free-solid-svg-icons'
+import { Textarea } from '@/components/ui/textarea'
 import { changeEmployeeStatusAction } from '../actions/employee-actions'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faToggleOn } from '@fortawesome/free-solid-svg-icons'
+import type { ActionResult } from '@/lib/toast-server'
 import type { EmployeeStatus } from '@/domains/hr/types'
 
 interface ChangeStatusDialogProps {
@@ -18,35 +21,36 @@ interface ChangeStatusDialogProps {
 }
 
 export function ChangeStatusDialog({ employeeId, currentStatus }: ChangeStatusDialogProps) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [state, action, isPending] = useActionState(
-    (prev: { error?: string } | null, formData: FormData) => changeEmployeeStatusAction(employeeId, prev, formData),
+  const handleToast = useActionToast()
+
+  const [state, action, isPending] = useActionState<ActionResult | null, FormData>(
+    async (prev: ActionResult | null, formData: FormData) => {
+      const result = await changeEmployeeStatusAction(employeeId, prev, formData)
+      handleToast(result)
+      if (result?.success) {
+        setOpen(false)
+        router.refresh()
+      }
+      return result
+    },
     null
   )
-
-  const handleSuccess = () => {
-    if (!state?.error) {
-      setOpen(false)
-    }
-  }
-
-  // Re-run effect when state changes
-  if (!isPending && !state?.error && open) {
-    handleSuccess()
-  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" className="gap-2">
-          <FontAwesomeIcon icon={faEllipsisVertical} className="fa-xs" />
+        <Button size="sm" variant="outline" className="gap-2">
+          <FontAwesomeIcon icon={faToggleOn} className="fa-xs" />
+          Change Status
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Change Employee Status</DialogTitle>
           <DialogDescription>
-            Update the employee status and provide context for this change.
+            Update the employment status and effective date. A record will be created in status history.
           </DialogDescription>
         </DialogHeader>
 
@@ -88,10 +92,6 @@ export function ChangeStatusDialog({ employeeId, currentStatus }: ChangeStatusDi
               className="min-h-24 resize-none"
             />
           </div>
-
-          {state?.error && (
-            <p className="text-sm text-destructive font-medium">{state.error}</p>
-          )}
 
           <div className="flex gap-3 justify-end">
             <Button
