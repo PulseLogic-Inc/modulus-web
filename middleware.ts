@@ -19,7 +19,17 @@ export async function middleware(request: NextRequest) {
   )
 
   // Always refresh session so it doesn't expire mid-session
-  const { data: { user } } = await supabase.auth.getUser()
+  // Gracefully handle missing refresh tokens (first visit, expired session, etc.)
+  let user = null
+  try {
+    const { data, error } = await supabase.auth.getUser()
+    if (!error) {
+      user = data.user
+    }
+  } catch (err) {
+    // Refresh token not found or invalid — this is normal on first visit
+    // User will be redirected to sign-in if accessing protected routes
+  }
 
   const pathname = request.nextUrl.pathname
   const isAuthRoute = pathname.startsWith('/sign-in') || pathname.startsWith('/forgot-password')
