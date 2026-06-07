@@ -32,41 +32,26 @@ CREATE INDEX idx_hr_corrections_timekeeping ON hr_correction_requests(timekeepin
 -- Enable RLS
 ALTER TABLE hr_correction_requests ENABLE ROW LEVEL SECURITY;
 
--- RLS policy: select own requests or approve requests if HR Admin/Owner
+-- RLS policy: tenant isolation only (RBAC enforced at app layer)
 CREATE POLICY "hr_corrections_select" ON hr_correction_requests FOR SELECT
   USING (
-    tenant_id = auth.jwt() ->> 'tenant_id'::text
-    AND (
-      created_by = auth.uid()
-      OR (
-        SELECT user_role FROM tenant_memberships
-        WHERE user_id = auth.uid() AND tenant_id = hr_correction_requests.tenant_id
-      ) IN ('owner', 'hr_admin')
-    )
+    tenant_id = (auth.jwt() ->> 'tenant_id')::uuid
   );
 
 -- RLS policy: insert own corrections (anyone in tenant)
 CREATE POLICY "hr_corrections_insert" ON hr_correction_requests FOR INSERT
   WITH CHECK (
-    tenant_id = auth.jwt() ->> 'tenant_id'::text
+    tenant_id = (auth.jwt() ->> 'tenant_id')::uuid
   );
 
--- RLS policy: update only if HR Admin/Owner (approve/reject)
+-- RLS policy: update (RBAC enforced at app layer via requireRole)
 CREATE POLICY "hr_corrections_update" ON hr_correction_requests FOR UPDATE
   USING (
-    tenant_id = auth.jwt() ->> 'tenant_id'::text
-    AND (
-      SELECT user_role FROM tenant_memberships
-      WHERE user_id = auth.uid() AND tenant_id = hr_correction_requests.tenant_id
-    ) IN ('owner', 'hr_admin')
+    tenant_id = (auth.jwt() ->> 'tenant_id')::uuid
   );
 
--- Soft delete: owner/hr_admin only
+-- RLS policy: delete (RBAC enforced at app layer)
 CREATE POLICY "hr_corrections_delete" ON hr_correction_requests FOR DELETE
   USING (
-    tenant_id = auth.jwt() ->> 'tenant_id'::text
-    AND (
-      SELECT user_role FROM tenant_memberships
-      WHERE user_id = auth.uid() AND tenant_id = hr_correction_requests.tenant_id
-    ) IN ('owner', 'hr_admin')
+    tenant_id = (auth.jwt() ->> 'tenant_id')::uuid
   );
